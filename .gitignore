@@ -216,3 +216,13 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Precautions
+downloads/
+refseq/
+genbank/
+
+*.faa
+*.faa.gz
+*.fna
+*.fna.gz
