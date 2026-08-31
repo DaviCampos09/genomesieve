@@ -8,11 +8,15 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QMainWindow,
+    QMessageBox,
+    QPushButton,
     QRadioButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
 )
+
+from genomesieve.gui.search_worker import GenomeSearchWorker
 
 
 class MainWindow(QMainWindow):
@@ -20,11 +24,11 @@ class MainWindow(QMainWindow):
         super().__init__()
 
         self.setWindowTitle("GenomeSieve")
-
-        # Initial size large enough for the current interface,
-        # while still allowing the user to resize the window.
-        self.resize(1000, 720)
+        self.resize(1000, 820)
         self.setMinimumSize(750, 550)
+
+        self.current_search_result = None
+        self.search_worker = None
 
         # ============================================================
         # HEADER
@@ -37,7 +41,7 @@ class MainWindow(QMainWindow):
         )
 
         # ============================================================
-        # GENUS INPUT
+        # GENUS
         # ============================================================
 
         genus_label = QLabel("Genus")
@@ -57,11 +61,15 @@ class MainWindow(QMainWindow):
             self.clear_genus_error
         )
 
+        self.genus_input.textChanged.connect(
+            self.invalidate_search_results
+        )
+
         # ============================================================
-        # ASSEMBLY LEVEL FILTERS
+        # ASSEMBLY LEVEL
         # ============================================================
 
-        assembly_group = QGroupBox("Assembly level")
+        self.assembly_group = QGroupBox("Assembly level")
         assembly_layout = QVBoxLayout()
 
         self.complete_checkbox = QCheckBox("Complete Genome")
@@ -78,7 +86,7 @@ class MainWindow(QMainWindow):
         assembly_layout.addWidget(self.contig_checkbox)
         assembly_layout.addStretch()
 
-        assembly_group.setLayout(assembly_layout)
+        self.assembly_group.setLayout(assembly_layout)
 
         self.assembly_level_options = {
             "complete": self.complete_checkbox,
@@ -88,10 +96,10 @@ class MainWindow(QMainWindow):
         }
 
         # ============================================================
-        # FILE FORMAT FILTERS
+        # FILES
         # ============================================================
 
-        format_group = QGroupBox("Files")
+        self.format_group = QGroupBox("Files")
         format_layout = QGridLayout()
 
         self.protein_fasta_checkbox = QCheckBox(
@@ -110,13 +118,8 @@ class MainWindow(QMainWindow):
             "RNA FASTA"
         )
 
-        self.gff_checkbox = QCheckBox(
-            "GFF"
-        )
-
-        self.genbank_checkbox = QCheckBox(
-            "GenBank"
-        )
+        self.gff_checkbox = QCheckBox("GFF")
+        self.genbank_checkbox = QCheckBox("GenBank")
 
         self.assembly_report_checkbox = QCheckBox(
             "Assembly Report"
@@ -132,7 +135,6 @@ class MainWindow(QMainWindow):
 
         self.protein_fasta_checkbox.setChecked(True)
 
-        # Two-column organization to use horizontal space better.
         format_layout.addWidget(
             self.protein_fasta_checkbox, 0, 0
         )
@@ -165,7 +167,7 @@ class MainWindow(QMainWindow):
             self.translated_cds_checkbox, 4, 0
         )
 
-        format_group.setLayout(format_layout)
+        self.format_group.setLayout(format_layout)
 
         self.format_options = {
             "protein-fasta": self.protein_fasta_checkbox,
@@ -180,10 +182,13 @@ class MainWindow(QMainWindow):
         }
 
         # ============================================================
-        # ASSEMBLY SELECTION STRATEGY
+        # ASSEMBLY SELECTION
         # ============================================================
 
-        selection_group = QGroupBox("Assemblies per species")
+        self.selection_group = QGroupBox(
+            "Assemblies per species"
+        )
+
         selection_layout = QVBoxLayout()
 
         self.keep_all_radio = QRadioButton(
@@ -211,16 +216,21 @@ class MainWindow(QMainWindow):
         selection_layout.addWidget(self.keep_all_radio)
         selection_layout.addWidget(self.keep_best_radio)
         selection_layout.addSpacing(10)
-        selection_layout.addWidget(self.selection_priority_label)
+        selection_layout.addWidget(
+            self.selection_priority_label
+        )
         selection_layout.addStretch()
 
-        selection_group.setLayout(selection_layout)
+        self.selection_group.setLayout(selection_layout)
 
         # ============================================================
         # UNIDENTIFIED SPECIES
         # ============================================================
 
-        unidentified_group = QGroupBox("Unidentified species")
+        self.unidentified_group = QGroupBox(
+            "Unidentified species"
+        )
+
         unidentified_layout = QVBoxLayout()
 
         self.remove_unidentified_checkbox = QCheckBox(
@@ -230,8 +240,8 @@ class MainWindow(QMainWindow):
         self.remove_unidentified_checkbox.setChecked(True)
 
         unidentified_description = QLabel(
-            'Removes records such as "Genus sp." or entries without '
-            "a known species identification."
+            'Removes records such as "Genus sp." or entries '
+            "without a known species identification."
         )
 
         unidentified_description.setWordWrap(True)
@@ -248,8 +258,34 @@ class MainWindow(QMainWindow):
 
         unidentified_layout.addStretch()
 
-        unidentified_group.setLayout(
+        self.unidentified_group.setLayout(
             unidentified_layout
+        )
+
+        # ============================================================
+        # FILTER CHANGE SIGNALS
+        # ============================================================
+
+        for checkbox in self.assembly_level_options.values():
+            checkbox.toggled.connect(
+                self.invalidate_search_results
+            )
+
+        for checkbox in self.format_options.values():
+            checkbox.toggled.connect(
+                self.invalidate_search_results
+            )
+
+        self.keep_all_radio.toggled.connect(
+            self.invalidate_search_results
+        )
+
+        self.keep_best_radio.toggled.connect(
+            self.invalidate_search_results
+        )
+
+        self.remove_unidentified_checkbox.toggled.connect(
+            self.invalidate_search_results
         )
 
         # ============================================================
@@ -258,38 +294,170 @@ class MainWindow(QMainWindow):
 
         filters_layout = QGridLayout()
 
-        # First row
         filters_layout.addWidget(
-            assembly_group,
-            0,
-            0,
+            self.assembly_group, 0, 0
         )
 
         filters_layout.addWidget(
-            format_group,
-            0,
-            1,
-        )
-
-        # Second row
-        filters_layout.addWidget(
-            selection_group,
-            1,
-            0,
+            self.format_group, 0, 1
         )
 
         filters_layout.addWidget(
-            unidentified_group,
-            1,
-            1,
+            self.selection_group, 1, 0
         )
 
-        # Give both columns similar available space.
+        filters_layout.addWidget(
+            self.unidentified_group, 1, 1
+        )
+
         filters_layout.setColumnStretch(0, 1)
         filters_layout.setColumnStretch(1, 1)
 
         # ============================================================
-        # PAGE CONTENT
+        # SEARCH BUTTON
+        # ============================================================
+
+        self.search_button = QPushButton(
+            "Search genomes"
+        )
+
+        self.search_button.clicked.connect(
+            self.start_genome_search
+        )
+
+        self.search_status_label = QLabel()
+        self.search_status_label.hide()
+
+        # ============================================================
+        # SEARCH RESULTS
+        # ============================================================
+
+        self.results_group = QGroupBox(
+            "Search results"
+        )
+
+        results_layout = QGridLayout()
+
+        # ============================================================
+        # FIRST ROW
+        # ============================================================
+
+        assemblies_found_title = QLabel("Assemblies found")
+        self.total_assemblies_label = QLabel("0")
+
+        identified_species_title = QLabel("Identified species")
+        self.identified_species_label = QLabel("0")
+
+        unidentified_title = QLabel("Unidentified assemblies")
+        self.unidentified_assemblies_label = QLabel("0")
+
+        results_layout.addWidget(
+            assemblies_found_title,
+            0,
+            0,
+            alignment=Qt.AlignCenter,
+        )
+
+        results_layout.addWidget(
+            identified_species_title,
+            0,
+            1,
+            alignment=Qt.AlignCenter,
+        )
+
+        results_layout.addWidget(
+            unidentified_title,
+            0,
+            2,
+            alignment=Qt.AlignCenter,
+        )
+
+        results_layout.addWidget(
+            self.total_assemblies_label,
+            1,
+            0,
+            alignment=Qt.AlignCenter,
+        )
+
+        results_layout.addWidget(
+            self.identified_species_label,
+            1,
+            1,
+            alignment=Qt.AlignCenter,
+        )
+
+        results_layout.addWidget(
+            self.unidentified_assemblies_label,
+            1,
+            2,
+            alignment=Qt.AlignCenter,
+        )
+
+        # ============================================================
+        # SECOND ROW
+        # ============================================================
+
+        selected_assemblies_title = QLabel("Selected assemblies")
+        self.selected_assemblies_label = QLabel("0")
+
+        selected_species_title = QLabel("Selected species")
+        self.selected_species_label = QLabel("0")
+
+        reference_genomes_title = QLabel("Reference genomes selected")
+        self.reference_genomes_label = QLabel("0")
+
+        results_layout.addWidget(
+            selected_assemblies_title,
+            2,
+            0,
+            alignment=Qt.AlignCenter,
+        )
+
+        results_layout.addWidget(
+            selected_species_title,
+            2,
+            1,
+            alignment=Qt.AlignCenter,
+        )
+
+        results_layout.addWidget(
+            reference_genomes_title,
+            2,
+            2,
+            alignment=Qt.AlignCenter,
+        )
+
+        results_layout.addWidget(
+            self.selected_assemblies_label,
+            3,
+            0,
+            alignment=Qt.AlignCenter,
+        )
+
+        results_layout.addWidget(
+            self.selected_species_label,
+            3,
+            1,
+            alignment=Qt.AlignCenter,
+        )
+
+        results_layout.addWidget(
+            self.reference_genomes_label,
+            3,
+            2,
+            alignment=Qt.AlignCenter,
+        )
+
+        # Give all columns equal space.
+        results_layout.setColumnStretch(0, 1)
+        results_layout.setColumnStretch(1, 1)
+        results_layout.setColumnStretch(2, 1)
+
+        self.results_group.setLayout(results_layout)
+        self.results_group.hide()
+
+        # ============================================================
+        # MAIN CONTENT
         # ============================================================
 
         content_layout = QVBoxLayout()
@@ -301,23 +469,31 @@ class MainWindow(QMainWindow):
 
         content_layout.addWidget(genus_label)
         content_layout.addWidget(self.genus_input)
-        content_layout.addWidget(self.genus_error_label)
+        content_layout.addWidget(
+            self.genus_error_label
+        )
 
         content_layout.addSpacing(20)
 
         content_layout.addLayout(filters_layout)
+
+        content_layout.addSpacing(15)
+
+        content_layout.addWidget(self.search_button)
+        content_layout.addWidget(
+            self.search_status_label
+        )
+
+        content_layout.addSpacing(10)
+
+        content_layout.addWidget(self.results_group)
 
         content_layout.addStretch()
 
         content_widget = QWidget()
         content_widget.setLayout(content_layout)
 
-        # ============================================================
-        # SCROLL AREA
-        # ============================================================
-
         scroll_area = QScrollArea()
-
         scroll_area.setWidgetResizable(True)
 
         scroll_area.setHorizontalScrollBarPolicy(
@@ -347,7 +523,8 @@ class MainWindow(QMainWindow):
 
         if not re.fullmatch(pattern, genus):
             self.show_genus_error(
-                "Enter a valid genus name using letters, spaces, or hyphens."
+                "Enter a valid genus name using letters, "
+                "spaces, or hyphens."
             )
             return False
 
@@ -368,14 +545,16 @@ class MainWindow(QMainWindow):
     def get_selected_assembly_levels(self):
         return [
             level
-            for level, checkbox in self.assembly_level_options.items()
+            for level, checkbox
+            in self.assembly_level_options.items()
             if checkbox.isChecked()
         ]
 
     def get_selected_formats(self):
         return [
             file_format
-            for file_format, checkbox in self.format_options.items()
+            for file_format, checkbox
+            in self.format_options.items()
             if checkbox.isChecked()
         ]
 
@@ -389,3 +568,149 @@ class MainWindow(QMainWindow):
         self.selection_priority_label.setVisible(
             self.keep_best_radio.isChecked()
         )
+
+    # ================================================================
+    # SEARCH
+    # ================================================================
+
+    def start_genome_search(self):
+
+        if not self.validate_genus_input():
+            return
+
+        assembly_levels = (
+            self.get_selected_assembly_levels()
+        )
+
+        if not assembly_levels:
+            QMessageBox.warning(
+                self,
+                "Assembly level required",
+                "Select at least one assembly level.",
+            )
+            return
+
+        file_formats = self.get_selected_formats()
+
+        if not file_formats:
+            QMessageBox.warning(
+                self,
+                "File format required",
+                "Select at least one file format.",
+            )
+            return
+
+        self.invalidate_search_results()
+
+        self.set_search_controls_enabled(False)
+
+        self.search_button.setEnabled(False)
+        self.search_button.setText("Searching...")
+
+        self.search_status_label.setText(
+            "Querying NCBI. No genome files are being downloaded..."
+        )
+
+        self.search_status_label.show()
+
+        self.search_worker = GenomeSearchWorker(
+            genus=self.genus_input.text().strip(),
+            assembly_levels=assembly_levels,
+            file_formats=file_formats,
+            keep_one_per_species=(
+                self.keep_one_assembly_per_species()
+            ),
+            remove_unidentified=(
+                self.remove_unidentified_species()
+            ),
+        )
+
+        self.search_worker.succeeded.connect(
+            self.handle_search_success
+        )
+
+        self.search_worker.failed.connect(
+            self.handle_search_error
+        )
+
+        self.search_worker.finished.connect(
+            self.finish_search
+        )
+
+        self.search_worker.start()
+
+    def handle_search_success(self, result):
+        self.current_search_result = result
+
+        self.total_assemblies_label.setText(
+            str(result.total_assemblies)
+        )
+
+        self.identified_species_label.setText(
+            str(result.identified_species)
+        )
+
+        self.unidentified_assemblies_label.setText(
+            str(result.unidentified_assemblies)
+        )
+
+        self.selected_assemblies_label.setText(
+            str(result.selected_assemblies)
+        )
+
+        self.selected_species_label.setText(
+            str(result.selected_species)
+        )
+
+        self.reference_genomes_label.setText(
+            str(result.selected_reference_genomes)
+        )
+
+        self.results_group.show()
+
+        if result.total_assemblies == 0:
+            self.search_status_label.setText(
+                "No matching assemblies were found."
+            )
+        else:
+            self.search_status_label.setText(
+                "Search completed successfully."
+            )
+
+    def handle_search_error(self, message):
+        self.current_search_result = None
+        self.results_group.hide()
+
+        self.search_status_label.setText(
+            "Search failed."
+        )
+
+        QMessageBox.critical(
+            self,
+            "Genome search failed",
+            message,
+        )
+
+    def finish_search(self):
+        self.set_search_controls_enabled(True)
+
+        self.search_button.setEnabled(True)
+        self.search_button.setText(
+            "Search genomes"
+        )
+
+        if self.search_worker is not None:
+            self.search_worker.deleteLater()
+            self.search_worker = None
+
+    def invalidate_search_results(self):
+        self.current_search_result = None
+        self.results_group.hide()
+
+    def set_search_controls_enabled(self, enabled):
+        self.genus_input.setEnabled(enabled)
+
+        self.assembly_group.setEnabled(enabled)
+        self.format_group.setEnabled(enabled)
+        self.selection_group.setEnabled(enabled)
+        self.unidentified_group.setEnabled(enabled)
