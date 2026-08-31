@@ -1,4 +1,5 @@
 import re
+from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -14,9 +15,12 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QVBoxLayout,
     QWidget,
+    QFileDialog,
+    QHBoxLayout,
 )
 
 from genomesieve.gui.search_worker import GenomeSearchWorker
+from genomesieve.gui.download_worker import GenomeDownloadWorker
 
 
 class MainWindow(QMainWindow):
@@ -29,6 +33,9 @@ class MainWindow(QMainWindow):
 
         self.current_search_result = None
         self.search_worker = None
+
+        self.download_worker = None
+        self.download_directory = None
 
         # ============================================================
         # HEADER
@@ -457,6 +464,70 @@ class MainWindow(QMainWindow):
         self.results_group.hide()
 
         # ============================================================
+        # DOWNLOAD
+        # ============================================================
+
+        self.download_group = QGroupBox("Download")
+        download_layout = QVBoxLayout()
+
+        destination_label = QLabel("Destination folder")
+
+        destination_row = QHBoxLayout()
+
+        self.destination_input = QLineEdit()
+        self.destination_input.setReadOnly(True)
+        self.destination_input.setPlaceholderText(
+            "Select where genome files will be saved"
+        )
+
+        self.browse_button = QPushButton("Browse...")
+
+        self.browse_button.clicked.connect(
+            self.choose_download_directory
+        )
+
+        destination_row.addWidget(
+            self.destination_input
+        )
+
+        destination_row.addWidget(
+            self.browse_button
+        )
+
+        self.download_button = QPushButton(
+            "Download genomes"
+        )
+
+        self.download_button.setEnabled(False)
+
+        self.download_button.clicked.connect(
+            self.start_genome_download
+        )
+
+        self.download_status_label = QLabel()
+        self.download_status_label.hide()
+
+        download_layout.addWidget(destination_label)
+        download_layout.addLayout(destination_row)
+
+        download_layout.addSpacing(10)
+
+        download_layout.addWidget(
+            self.download_button
+        )
+
+        download_layout.addWidget(
+            self.download_status_label
+        )
+
+        self.download_group.setLayout(
+            download_layout
+        )
+
+        # Only shown after a valid genome search.
+        self.download_group.hide()
+
+        # ============================================================
         # MAIN CONTENT
         # ============================================================
 
@@ -487,6 +558,10 @@ class MainWindow(QMainWindow):
         content_layout.addSpacing(10)
 
         content_layout.addWidget(self.results_group)
+
+        content_layout.addSpacing(10)
+
+        content_layout.addWidget(self.download_group)
 
         content_layout.addStretch()
 
@@ -668,6 +743,12 @@ class MainWindow(QMainWindow):
 
         self.results_group.show()
 
+        if result.selected_assemblies > 0:
+            self.download_group.show()
+            self.update_download_button_state()
+        else:
+            self.download_group.hide()
+
         if result.total_assemblies == 0:
             self.search_status_label.setText(
                 "No matching assemblies were found."
@@ -706,6 +787,7 @@ class MainWindow(QMainWindow):
     def invalidate_search_results(self):
         self.current_search_result = None
         self.results_group.hide()
+        self.download_group.hide()
 
     def set_search_controls_enabled(self, enabled):
         self.genus_input.setEnabled(enabled)
@@ -714,3 +796,149 @@ class MainWindow(QMainWindow):
         self.format_group.setEnabled(enabled)
         self.selection_group.setEnabled(enabled)
         self.unidentified_group.setEnabled(enabled)
+
+    # ================================================================
+    # DOWNLOAD DIRECTORY AND ACTIONS
+    # ================================================================
+
+    def choose_download_directory(self):
+        initial_directory = (
+            self.download_directory
+            if self.download_directory
+            else str(Path.home())
+        )
+
+        directory = QFileDialog.getExistingDirectory(
+            self,
+            "Select download folder",
+            initial_directory,
+        )
+
+        if not directory:
+            return
+
+        self.download_directory = directory
+
+        self.destination_input.setText(
+            directory
+        )
+
+        self.update_download_button_state()
+
+
+    def update_download_button_state(self):
+        can_download = (
+            self.current_search_result is not None
+            and self.current_search_result.selected_assemblies > 0
+            and bool(self.download_directory)
+        )
+
+        self.download_button.setEnabled(
+            can_download
+        )
+
+    def start_genome_download(self):
+        if self.current_search_result is None:
+            return
+
+        if not self.download_directory:
+            QMessageBox.warning(
+                self,
+                "Destination folder required",
+                "Select a destination folder before downloading.",
+            )
+            return
+
+        selected_records = (
+            self.current_search_result.selected_records
+        )
+
+        if not selected_records:
+            QMessageBox.warning(
+                self,
+                "Nothing to download",
+                "There are no selected assemblies to download.",
+            )
+            return
+
+        file_formats = self.get_selected_formats()
+
+        self.set_search_controls_enabled(False)
+
+        self.search_button.setEnabled(False)
+        self.browse_button.setEnabled(False)
+
+        self.download_button.setEnabled(False)
+        self.download_button.setText(
+            "Downloading..."
+        )
+
+        self.download_status_label.setText(
+            f"Downloading {len(selected_records)} assemblies..."
+        )
+
+        self.download_status_label.show()
+
+        self.download_worker = GenomeDownloadWorker(
+            records=selected_records,
+            file_formats=file_formats,
+            destination=self.download_directory,
+        )
+
+        self.download_worker.succeeded.connect(
+            self.handle_download_success
+        )
+
+        self.download_worker.failed.connect(
+            self.handle_download_error
+        )
+
+        self.download_worker.finished.connect(
+            self.finish_download
+        )
+
+        self.download_worker.start()
+
+    def handle_download_success(self, result):
+        self.download_status_label.setText(
+            "Download completed successfully."
+        )
+
+        QMessageBox.information(
+            self,
+            "Download completed",
+            (
+                "Genome download completed successfully.\n\n"
+                f"Assemblies: {result.requested_assemblies}\n"
+                f"Destination:\n{result.destination}"
+            ),
+        )
+
+
+    def handle_download_error(self, message):
+        self.download_status_label.setText(
+            "Download failed."
+        )
+
+        QMessageBox.critical(
+            self,
+            "Genome download failed",
+            message,
+        )
+
+
+    def finish_download(self):
+        self.set_search_controls_enabled(True)
+
+        self.search_button.setEnabled(True)
+        self.browse_button.setEnabled(True)
+
+        self.download_button.setText(
+            "Download genomes"
+        )
+
+        self.update_download_button_state()
+
+        if self.download_worker is not None:
+            self.download_worker.deleteLater()
+            self.download_worker = None

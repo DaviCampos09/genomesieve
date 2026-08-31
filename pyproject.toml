@@ -5,7 +5,8 @@ description = "User-friendly tool for searching, filtering, selecting, and downl
 requires-python = ">=3.10"
 
 dependencies = [
-    "PySide6"
+    "PySide6",
+    "ncbi-genome-download>=0.3.3",
 ]
 
 [build-system]
