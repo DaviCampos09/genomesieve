@@ -6,7 +6,7 @@ requires-python = ">=3.10"
 
 dependencies = [
     "PySide6",
-    "ncbi-genome-download>=0.3.3",
+    "ncbi-genome-download>=0.3.3,<0.4",
 ]
 
 [build-system]

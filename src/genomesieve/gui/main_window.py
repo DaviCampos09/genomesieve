@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (
     QWidget,
     QFileDialog,
     QHBoxLayout,
+    QProgressBar,
 )
 
 from genomesieve.gui.search_worker import GenomeSearchWorker
@@ -507,6 +508,25 @@ class MainWindow(QMainWindow):
         self.download_status_label = QLabel()
         self.download_status_label.hide()
 
+        self.download_progress_bar = QProgressBar()
+
+        self.download_progress_bar.setRange(
+            0,
+            100,
+        )
+
+        self.download_progress_bar.setValue(0)
+
+        self.download_progress_bar.setTextVisible(True)
+
+        self.download_progress_bar.hide()
+
+        self.download_progress_details_label = QLabel()
+
+        self.download_progress_details_label.setWordWrap(True)
+
+        self.download_progress_details_label.hide()
+
         download_layout.addWidget(destination_label)
         download_layout.addLayout(destination_row)
 
@@ -518,6 +538,14 @@ class MainWindow(QMainWindow):
 
         download_layout.addWidget(
             self.download_status_label
+        )
+
+        download_layout.addWidget(
+            self.download_progress_bar
+        )
+
+        download_layout.addWidget(
+            self.download_progress_details_label
         )
 
         self.download_group.setLayout(
@@ -874,10 +902,27 @@ class MainWindow(QMainWindow):
         )
 
         self.download_status_label.setText(
-            f"Downloading {len(selected_records)} assemblies..."
+            "Preparing download..."
         )
 
         self.download_status_label.show()
+
+
+        # Indeterminate mode while ncbi-genome-download checks
+        # metadata and determines which files actually need download.
+        self.download_progress_bar.setRange(
+            0,
+            0,
+        )
+
+        self.download_progress_bar.show()
+
+
+        self.download_progress_details_label.setText(
+            "Checking available files..."
+        )
+
+        self.download_progress_details_label.show()
 
         self.download_worker = GenomeDownloadWorker(
             records=selected_records,
@@ -893,6 +938,14 @@ class MainWindow(QMainWindow):
             self.handle_download_error
         )
 
+        self.download_worker.progress_changed.connect(
+            self.handle_download_progress
+        )
+
+        self.download_worker.status_changed.connect(
+            self.handle_download_status
+        )
+
         self.download_worker.finished.connect(
             self.finish_download
         )
@@ -900,9 +953,31 @@ class MainWindow(QMainWindow):
         self.download_worker.start()
 
     def handle_download_success(self, result):
+
+        self.download_progress_bar.setRange(
+            0,
+            100,
+        )
+
+        self.download_progress_bar.setValue(
+            100
+        )
+
         self.download_status_label.setText(
             "Download completed successfully."
         )
+
+        if result.completed_files == 0:
+
+            self.download_progress_details_label.setText(
+                "All requested files were already present and valid."
+            )
+
+        else:
+
+            self.download_progress_details_label.setText(
+                f"{result.completed_files} files completed."
+            )
 
         QMessageBox.information(
             self,
@@ -910,6 +985,7 @@ class MainWindow(QMainWindow):
             (
                 "Genome download completed successfully.\n\n"
                 f"Assemblies: {result.requested_assemblies}\n"
+                f"Files downloaded: {result.completed_files}\n"
                 f"Destination:\n{result.destination}"
             ),
         )
@@ -924,6 +1000,11 @@ class MainWindow(QMainWindow):
             self,
             "Genome download failed",
             message,
+        )
+
+        self.download_progress_bar.setRange(
+            0,
+            100,
         )
 
 
@@ -942,3 +1023,93 @@ class MainWindow(QMainWindow):
         if self.download_worker is not None:
             self.download_worker.deleteLater()
             self.download_worker = None
+
+    def handle_download_status(self, message):
+        self.download_status_label.setText(
+            message
+        )
+
+    def handle_download_progress(self, progress):
+
+        # Switch from indeterminate mode to percentage mode.
+        self.download_progress_bar.setRange(
+            0,
+            100,
+        )
+
+        self.download_progress_bar.setValue(
+            progress.percentage
+        )
+
+        # No files actually required downloading.
+        if progress.total_files == 0:
+
+            self.download_progress_details_label.setText(
+                "All requested files are already present and valid."
+            )
+
+            return
+
+        details = (
+            f"{progress.completed_files} / "
+            f"{progress.total_files} files completed"
+        )
+
+        if progress.eta_seconds is None:
+
+            details += (
+                "\nEstimating time remaining..."
+            )
+
+        else:
+
+            details += (
+                "\nEstimated time remaining: "
+                f"{self.format_eta(progress.eta_seconds)}"
+            )
+
+        if progress.last_completed_file:
+
+            details += (
+                "\nLast completed: "
+                f"{progress.last_completed_file}"
+            )
+
+        self.download_progress_details_label.setText(
+            details
+        )
+
+    def format_eta(self, seconds):
+        seconds = max(
+            0,
+            round(seconds),
+        )
+
+        if seconds < 60:
+            return f"{seconds} seconds"
+
+        minutes, seconds = divmod(
+            seconds,
+            60,
+        )
+
+        if minutes < 60:
+
+            if seconds == 0:
+                return f"{minutes} min"
+
+            return (
+                f"{minutes} min {seconds} s"
+            )
+
+        hours, minutes = divmod(
+            minutes,
+            60,
+        )
+
+        if minutes == 0:
+            return f"{hours} h"
+
+        return (
+            f"{hours} h {minutes} min"
+        )
