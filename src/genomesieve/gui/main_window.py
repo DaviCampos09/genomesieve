@@ -1,5 +1,6 @@
 import re
 from pathlib import Path
+from PySide6.QtGui import QIcon
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -20,9 +21,23 @@ from PySide6.QtWidgets import (
     QProgressBar,
 )
 
+from genomesieve.services.reporting import (
+    ReportError,
+    export_download_report,
+    export_search_report,
+)
+
 from genomesieve.gui.search_worker import GenomeSearchWorker
 from genomesieve.gui.download_worker import GenomeDownloadWorker
 
+assets_dir = (
+    Path(__file__).resolve().parent.parent
+    / "assets"
+)
+
+csv_icon = QIcon(
+    str(assets_dir / "csv.svg")
+)
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -318,6 +333,7 @@ class MainWindow(QMainWindow):
             self.unidentified_group, 1, 1
         )
 
+
         filters_layout.setColumnStretch(0, 1)
         filters_layout.setColumnStretch(1, 1)
 
@@ -461,6 +477,54 @@ class MainWindow(QMainWindow):
         results_layout.setColumnStretch(1, 1)
         results_layout.setColumnStretch(2, 1)
 
+        # ============================================================
+        # SEARCH REPORT EXPORT
+        # ============================================================
+
+        self.search_report_button = QPushButton()
+
+        self.search_report_button.setIcon(
+            QIcon(csv_icon)
+        )
+
+        self.search_report_button.setToolTip(
+            "Export search and selection report as CSV"
+        )
+
+        self.search_report_button.setFixedSize(40, 32)
+
+        self.search_report_button.setToolTip(
+            "Export search and selection report as CSV"
+        )
+
+        self.search_report_button.setMaximumWidth(
+            90
+        )
+
+        self.search_report_button.setEnabled(
+            False
+        )
+
+        self.search_report_button.clicked.connect(
+            self.export_current_search_report
+        )
+
+        search_report_layout = QHBoxLayout()
+
+        search_report_layout.addStretch()
+
+        search_report_layout.addWidget(
+            self.search_report_button
+        )
+
+        results_layout.addLayout(
+            search_report_layout,
+            4,
+            0,
+            1,
+            3,
+        )
+
         self.results_group.setLayout(results_layout)
         self.results_group.hide()
 
@@ -527,6 +591,50 @@ class MainWindow(QMainWindow):
 
         self.download_progress_details_label.hide()
 
+        # ============================================================
+        # DOWNLOAD REPORT EXPORT
+        # ============================================================
+
+        self.download_report_button = QPushButton()
+
+        self.download_report_button.setIcon(
+            QIcon(csv_icon)
+        )
+
+        self.download_report_button.setToolTip(
+            "Export downloaded genomes report as CSV"
+        )
+
+        self.download_report_button.setFixedSize(40, 32)
+
+        self.download_report_button.setToolTip(
+            "Export downloaded genomes report as CSV"
+        )
+
+        self.download_report_button.setMaximumWidth(
+            90
+        )
+
+        # There is no valid download report until a download
+        # finishes successfully.
+        self.download_report_button.setEnabled(
+            False
+        )
+
+        self.download_report_button.hide()
+
+        self.download_report_button.clicked.connect(
+            self.export_current_download_report
+        )
+
+        download_report_layout = QHBoxLayout()
+
+        download_report_layout.addStretch()
+
+        download_report_layout.addWidget(
+            self.download_report_button
+        )
+
         download_layout.addWidget(destination_label)
         download_layout.addLayout(destination_row)
 
@@ -546,6 +654,10 @@ class MainWindow(QMainWindow):
 
         download_layout.addWidget(
             self.download_progress_details_label
+        )
+
+        download_layout.addLayout(
+            download_report_layout
         )
 
         self.download_group.setLayout(
@@ -745,6 +857,10 @@ class MainWindow(QMainWindow):
     def handle_search_success(self, result):
         self.current_search_result = result
 
+        self.search_report_button.setEnabled(
+            True
+        )
+
         self.total_assemblies_label.setText(
             str(result.total_assemblies)
         )
@@ -816,6 +932,7 @@ class MainWindow(QMainWindow):
         self.current_search_result = None
         self.results_group.hide()
         self.download_group.hide()
+        self.search_report_button.setEnabled(False)
 
     def set_search_controls_enabled(self, enabled):
         self.genus_input.setEnabled(enabled)
@@ -924,6 +1041,12 @@ class MainWindow(QMainWindow):
 
         self.download_progress_details_label.show()
 
+        self.download_report_button.setEnabled(
+            False
+        )
+
+        self.download_report_button.hide()
+
         self.download_worker = GenomeDownloadWorker(
             records=selected_records,
             file_formats=file_formats,
@@ -963,6 +1086,12 @@ class MainWindow(QMainWindow):
             "Download completed successfully."
         )
 
+        self.download_report_button.setEnabled(
+            True
+        )
+
+        self.download_report_button.show()
+
         if result.completed_files == 0:
 
             self.download_progress_details_label.setText(
@@ -975,15 +1104,17 @@ class MainWindow(QMainWindow):
                 f"{result.completed_files} files completed."
             )
 
+        message = (
+            "Genome download completed successfully.\n\n"
+            f"Assemblies: {result.requested_assemblies}\n"
+            f"Files downloaded: {result.completed_files}\n"
+            f"Destination:\n{result.destination}"
+        )
+
         QMessageBox.information(
             self,
             "Download completed",
-            (
-                "Genome download completed successfully.\n\n"
-                f"Assemblies: {result.requested_assemblies}\n"
-                f"Files downloaded: {result.completed_files}\n"
-                f"Destination:\n{result.destination}"
-            ),
+            message,
         )
 
 
@@ -1188,4 +1319,152 @@ class MainWindow(QMainWindow):
 
         return (
             f"{hours} h {minutes} min"
+        )
+    
+    def export_current_search_report(self):
+
+        if self.current_search_result is None:
+            return
+
+        genus = self.genus_input.text().strip()
+
+        safe_genus = "".join(
+            character
+            if character.isalnum()
+            else "_"
+            for character in genus
+        ).strip("_")
+
+        default_filename = (
+            f"genomesieve_{safe_genus}_search_report.csv"
+        )
+
+        default_path = str(
+            Path.home()
+            / default_filename
+        )
+
+        output_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export search report",
+            default_path,
+            "CSV files (*.csv)",
+        )
+
+        # User cancelled the dialog.
+        if not output_path:
+            return
+
+        if not output_path.lower().endswith(
+            ".csv"
+        ):
+            output_path += ".csv"
+
+        try:
+            report_path = export_search_report(
+                result=self.current_search_result,
+                output_path=output_path,
+                genus=genus,
+                assembly_levels=(
+                    self.get_selected_assembly_levels()
+                ),
+                file_formats=(
+                    self.get_selected_formats()
+                ),
+                keep_one_per_species=(
+                    self.keep_one_assembly_per_species()
+                ),
+                remove_unidentified=(
+                    self.remove_unidentified_species()
+                ),
+            )
+
+        except ReportError as exc:
+
+            QMessageBox.warning(
+                self,
+                "Search report",
+                str(exc),
+            )
+
+            return
+
+        QMessageBox.information(
+            self,
+            "Search report",
+            (
+                "Search report exported successfully.\n\n"
+                f"{report_path}"
+            ),
+        )
+
+    def export_current_download_report(self):
+
+        if self.current_search_result is None:
+            return
+
+        if not self.download_directory:
+            return
+
+        genus = self.genus_input.text().strip()
+
+        safe_genus = "".join(
+            character
+            if character.isalnum()
+            else "_"
+            for character in genus
+        ).strip("_")
+
+        default_filename = (
+            f"genomesieve_{safe_genus}_download_report.csv"
+        )
+
+        default_path = str(
+            Path(self.download_directory)
+            / default_filename
+        )
+
+        output_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export download report",
+            default_path,
+            "CSV files (*.csv)",
+        )
+
+        if not output_path:
+            return
+
+        if not output_path.lower().endswith(
+            ".csv"
+        ):
+            output_path += ".csv"
+
+        try:
+            report_path = export_download_report(
+                result=self.current_search_result,
+                destination=self.download_directory,
+                genus=genus,
+                file_formats=(
+                    self.get_selected_formats()
+                ),
+                output_path=output_path,
+            )
+
+        except ReportError as exc:
+
+            QMessageBox.warning(
+                self,
+                "Download report",
+                str(exc),
+            )
+
+            return
+
+        QMessageBox.information(
+            self,
+            "Download report",
+            (
+                "Download report exported successfully.\n\n"
+                f"{report_path}"
+            ),
         )
