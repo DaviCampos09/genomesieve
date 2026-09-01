@@ -902,7 +902,7 @@ class MainWindow(QMainWindow):
         )
 
         self.download_status_label.setText(
-            "Preparing download..."
+            "Loading NCBI metadata..."
         )
 
         self.download_status_label.show()
@@ -919,7 +919,7 @@ class MainWindow(QMainWindow):
 
 
         self.download_progress_details_label.setText(
-            "Checking available files..."
+            "Reading and filtering NCBI RefSeq metadata..."
         )
 
         self.download_progress_details_label.show()
@@ -940,10 +940,6 @@ class MainWindow(QMainWindow):
 
         self.download_worker.progress_changed.connect(
             self.handle_download_progress
-        )
-
-        self.download_worker.status_changed.connect(
-            self.handle_download_status
         )
 
         self.download_worker.finished.connect(
@@ -992,6 +988,14 @@ class MainWindow(QMainWindow):
 
 
     def handle_download_error(self, message):
+
+        # Stop indeterminate animation if the error happened
+        # during metadata loading.
+        self.download_progress_bar.setRange(
+            0,
+            100,
+        )
+
         self.download_status_label.setText(
             "Download failed."
         )
@@ -1000,11 +1004,6 @@ class MainWindow(QMainWindow):
             self,
             "Genome download failed",
             message,
-        )
-
-        self.download_progress_bar.setRange(
-            0,
-            100,
         )
 
 
@@ -1031,53 +1030,130 @@ class MainWindow(QMainWindow):
 
     def handle_download_progress(self, progress):
 
-        # Switch from indeterminate mode to percentage mode.
+        # ============================================================
+        # PHASE 1 — NCBI METADATA
+        # ============================================================
+
+        if progress.phase == "metadata":
+
+            self.download_status_label.setText(
+                "Loading NCBI metadata..."
+            )
+
+            # Indeterminate progress bar.
+            self.download_progress_bar.setRange(
+                0,
+                0,
+            )
+
+            self.download_progress_details_label.setText(
+                "Reading and filtering NCBI RefSeq metadata..."
+            )
+
+            return
+
+        # From this point forward the total amount of work is known.
         self.download_progress_bar.setRange(
             0,
             100,
         )
 
         self.download_progress_bar.setValue(
-            progress.percentage
+            progress.percentage or 0
         )
 
-        # No files actually required downloading.
-        if progress.total_files == 0:
+        # ============================================================
+        # PHASE 2 — PREPARING FILES
+        # ============================================================
+
+        if progress.phase == "preparing":
+
+            self.download_status_label.setText(
+                "Preparing files..."
+            )
+
+            details = (
+                f"{progress.completed} / "
+                f"{progress.total} assemblies prepared"
+            )
+
+            if progress.completed == 0:
+
+                details += (
+                    "\nEstimating preparation time..."
+                )
+
+            elif progress.eta_seconds is not None:
+
+                details += (
+                    "\nEstimated preparation time remaining: "
+                    f"{self.format_eta(progress.eta_seconds)}"
+                )
+
+            if progress.last_item:
+
+                details += (
+                    "\nLast prepared: "
+                    f"{progress.last_item}"
+                )
 
             self.download_progress_details_label.setText(
-                "All requested files are already present and valid."
+                details
             )
 
             return
 
-        details = (
-            f"{progress.completed_files} / "
-            f"{progress.total_files} files completed"
-        )
+        # ============================================================
+        # PHASE 3 — DOWNLOADING FILES
+        # ============================================================
 
-        if progress.eta_seconds is None:
+        if progress.phase == "downloading":
 
-            details += (
-                "\nEstimating time remaining..."
+            self.download_status_label.setText(
+                "Downloading files..."
             )
 
-        else:
+            # Everything was already present locally.
+            if progress.total == 0:
 
-            details += (
-                "\nEstimated time remaining: "
-                f"{self.format_eta(progress.eta_seconds)}"
+                self.download_progress_bar.setValue(
+                    100
+                )
+
+                self.download_progress_details_label.setText(
+                    "All requested files are already present and valid."
+                )
+
+                return
+
+            details = (
+                f"{progress.completed} / "
+                f"{progress.total} files completed"
             )
 
-        if progress.last_completed_file:
+            if progress.completed == 0:
 
-            details += (
-                "\nLast completed: "
-                f"{progress.last_completed_file}"
+                details += (
+                    "\nEstimating download time..."
+                )
+
+            elif progress.eta_seconds is not None:
+
+                details += (
+                    "\nEstimated download time remaining: "
+                    f"{self.format_eta(progress.eta_seconds)}"
+                )
+
+            if progress.last_item:
+
+                details += (
+                    "\nLast completed: "
+                    f"{progress.last_item}"
+                )
+
+            self.download_progress_details_label.setText(
+                details
             )
-
-        self.download_progress_details_label.setText(
-            details
-        )
 
     def format_eta(self, seconds):
         seconds = max(

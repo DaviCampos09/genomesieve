@@ -11,7 +11,6 @@ class GenomeDownloadWorker(QThread):
     failed = Signal(str)
 
     progress_changed = Signal(object)
-    status_changed = Signal(str)
 
     def __init__(
         self,
@@ -32,7 +31,6 @@ class GenomeDownloadWorker(QThread):
                 file_formats=self.file_formats,
                 destination=self.destination,
                 progress_callback=self.progress_changed.emit,
-                status_callback=self.status_changed.emit,
             )
 
             self.succeeded.emit(result)
