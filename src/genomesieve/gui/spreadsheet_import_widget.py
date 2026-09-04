@@ -13,12 +13,17 @@ from PySide6.QtWidgets import (
     QPushButton,
     QVBoxLayout,
     QWidget,
+    QRadioButton,
 )
 
 from genomesieve.services.spreadsheet_import import (
     SpreadsheetImportError,
     analyze_spreadsheet,
     import_accessions,
+)
+
+from genomesieve.gui.spreadsheet_validation_worker import (
+    SpreadsheetValidationWorker,
 )
 
 
@@ -37,6 +42,8 @@ class SpreadsheetImportWidget(QWidget):
         self.spreadsheet_path = None
         self.analysis = None
         self.current_import_result = None
+        self.current_validation_result = None
+        self.validation_worker = None
 
         self.sheet_controls = {}
 
@@ -241,6 +248,241 @@ class SpreadsheetImportWidget(QWidget):
         self.preview_group.hide()
 
         # ============================================================
+        # NCBI VALIDATION
+        # ============================================================
+
+        self.validation_group = QGroupBox(
+            "NCBI validation"
+        )
+
+        validation_layout = QVBoxLayout()
+
+        duplicate_label = QLabel(
+            "Duplicate handling"
+        )
+
+        self.keep_duplicates_radio = (
+            QRadioButton(
+                "Keep duplicate entries"
+            )
+        )
+
+        self.remove_duplicates_radio = (
+            QRadioButton(
+                "Remove duplicate entries"
+            )
+        )
+
+        # Respect the spreadsheet exactly by default.
+        self.keep_duplicates_radio.setChecked(
+            True
+        )
+
+        self.keep_duplicates_radio.toggled.connect(
+            self.update_validation_summary
+        )
+
+        self.remove_duplicates_radio.toggled.connect(
+            self.update_validation_summary
+        )
+
+        duplicate_description = QLabel(
+            "Duplicate entries may be preserved in the dataset, "
+            "but identical Assembly Accessions will still be "
+            "downloaded only once."
+        )
+
+        duplicate_description.setWordWrap(
+            True
+        )
+
+        self.validate_ncbi_button = (
+            QPushButton(
+                "Validate with NCBI"
+            )
+        )
+
+        self.validate_ncbi_button.setEnabled(
+            False
+        )
+
+        self.validate_ncbi_button.clicked.connect(
+            self.start_ncbi_validation
+        )
+
+        self.validation_status_label = QLabel()
+        self.validation_status_label.hide()
+
+        validation_layout.addWidget(
+            duplicate_label
+        )
+
+        validation_layout.addWidget(
+            self.keep_duplicates_radio
+        )
+
+        validation_layout.addWidget(
+            self.remove_duplicates_radio
+        )
+
+        validation_layout.addWidget(
+            duplicate_description
+        )
+
+        validation_layout.addSpacing(
+            10
+        )
+
+        validation_layout.addWidget(
+            self.validate_ncbi_button
+        )
+
+        validation_layout.addWidget(
+            self.validation_status_label
+        )
+
+        self.validation_group.setLayout(
+            validation_layout
+        )
+
+        self.validation_group.hide()
+
+        # ============================================================
+        # VALIDATION RESULTS
+        # ============================================================
+
+        self.validation_results_group = QGroupBox(
+            "Validated import"
+        )
+
+        validation_results_layout = (
+            QGridLayout()
+        )
+
+        # Row 1
+        validation_results_layout.addWidget(
+            QLabel("Ready for RefSeq"),
+            0,
+            0,
+        )
+
+        self.ready_label = QLabel("0")
+
+        validation_results_layout.addWidget(
+            self.ready_label,
+            1,
+            0,
+        )
+
+        validation_results_layout.addWidget(
+            QLabel("GCA resolved to GCF"),
+            0,
+            1,
+        )
+
+        self.resolved_label = QLabel("0")
+
+        validation_results_layout.addWidget(
+            self.resolved_label,
+            1,
+            1,
+        )
+
+        validation_results_layout.addWidget(
+            QLabel("GenBank-only"),
+            0,
+            2,
+        )
+
+        self.genbank_only_label = QLabel("0")
+
+        validation_results_layout.addWidget(
+            self.genbank_only_label,
+            1,
+            2,
+        )
+
+        # Row 2
+        validation_results_layout.addWidget(
+            QLabel("Not found"),
+            2,
+            0,
+        )
+
+        self.not_found_label = QLabel("0")
+
+        validation_results_layout.addWidget(
+            self.not_found_label,
+            3,
+            0,
+        )
+
+        validation_results_layout.addWidget(
+            QLabel("Dataset entries"),
+            2,
+            1,
+        )
+
+        self.dataset_entries_label = QLabel("0")
+
+        validation_results_layout.addWidget(
+            self.dataset_entries_label,
+            3,
+            1,
+        )
+
+        validation_results_layout.addWidget(
+            QLabel("Unique downloads"),
+            2,
+            2,
+        )
+
+        self.unique_downloads_label = QLabel("0")
+
+        validation_results_layout.addWidget(
+            self.unique_downloads_label,
+            3,
+            2,
+        )
+
+        validation_results_layout.setColumnStretch(
+            0,
+            1,
+        )
+
+        validation_results_layout.setColumnStretch(
+            1,
+            1,
+        )
+
+        validation_results_layout.setColumnStretch(
+            2,
+            1,
+        )
+
+        self.validation_note = QLabel(
+            "Validation completed. Genome files have not been downloaded yet."
+        )
+
+        self.validation_note.setWordWrap(
+            True
+        )
+
+        validation_results_layout.addWidget(
+            self.validation_note,
+            4,
+            0,
+            1,
+            3,
+        )
+
+        self.validation_results_group.setLayout(
+            validation_results_layout
+        )
+
+        self.validation_results_group.hide()
+
+        # ============================================================
         # ROOT LAYOUT
         # ============================================================
 
@@ -256,6 +498,14 @@ class SpreadsheetImportWidget(QWidget):
 
         layout.addWidget(
             self.preview_group
+        )
+
+        layout.addWidget(
+            self.validation_group
+        )
+
+        layout.addWidget(
+            self.validation_results_group
         )
 
         self.setLayout(
@@ -617,6 +867,18 @@ class SpreadsheetImportWidget(QWidget):
             result
         )
 
+        # Any change to spreadsheet columns invalidates the
+        # previous NCBI validation.
+        self.invalidate_validation()
+
+        self.validation_group.setVisible(
+            result.total_entries > 0
+        )
+
+        self.validate_ncbi_button.setEnabled(
+            result.total_entries > 0
+        )
+
         included_sheets = sum(
             1
             for column_index
@@ -675,6 +937,10 @@ class SpreadsheetImportWidget(QWidget):
 
         self.analysis_status_label.hide()
 
+        self.invalidate_validation()
+
+        self.validation_group.hide()
+
     def clear_sheet_controls(self):
         self.sheet_controls = {}
 
@@ -691,3 +957,217 @@ class SpreadsheetImportWidget(QWidget):
 
             if widget is not None:
                 widget.deleteLater()
+
+    def start_ncbi_validation(self):
+
+        if self.current_import_result is None:
+            return
+
+        if (
+            self.current_import_result
+            .total_entries
+            == 0
+        ):
+            return
+
+        self.validate_ncbi_button.setEnabled(
+            False
+        )
+
+        self.validate_ncbi_button.setText(
+            "Validating..."
+        )
+
+        self.set_import_controls_enabled(
+            False
+        )
+
+        self.validation_status_label.setText(
+            "Validating Assembly Accessions with NCBI..."
+        )
+
+        self.validation_status_label.show()
+
+        self.validation_results_group.hide()
+
+        self.validation_worker = (
+            SpreadsheetValidationWorker(
+                self.current_import_result
+            )
+        )
+
+        self.validation_worker.succeeded.connect(
+            self.handle_validation_success
+        )
+
+        self.validation_worker.failed.connect(
+            self.handle_validation_error
+        )
+
+        self.validation_worker.finished.connect(
+            self.finish_validation
+        )
+
+        self.validation_worker.start()
+
+    def handle_validation_success(
+        self,
+        result,
+    ):
+        self.current_validation_result = (
+            result
+        )
+
+        self.validation_status_label.setText(
+            "NCBI validation completed successfully."
+        )
+
+        self.update_validation_summary()
+
+        self.validation_results_group.show()
+
+    def handle_validation_error(
+        self,
+        message,
+    ):
+        self.current_validation_result = None
+
+        self.validation_status_label.setText(
+            "NCBI validation failed."
+        )
+
+        self.validation_results_group.hide()
+
+        QMessageBox.critical(
+            self,
+            "NCBI validation failed",
+            message,
+        )
+
+    def finish_validation(self):
+
+        self.set_import_controls_enabled(
+            True
+        )
+
+        self.validate_ncbi_button.setText(
+            "Validate with NCBI"
+        )
+
+        self.validate_ncbi_button.setEnabled(
+            (
+                self.current_import_result
+                is not None
+                and self.current_import_result
+                .total_entries
+                > 0
+            )
+        )
+
+        if self.validation_worker is not None:
+
+            self.validation_worker.deleteLater()
+
+            self.validation_worker = None
+
+    def update_validation_summary(self):
+
+        if self.current_validation_result is None:
+            return
+
+        result = (
+            self.current_validation_result
+        )
+
+        keep_duplicates = (
+            self.keep_duplicates_radio
+            .isChecked()
+        )
+
+        dataset_entries = (
+            result.get_dataset_entries(
+                keep_duplicates=keep_duplicates
+            )
+        )
+
+        self.ready_label.setText(
+            str(
+                len(result.ready_entries)
+            )
+        )
+
+        self.resolved_label.setText(
+            str(
+                len(result.resolved_entries)
+            )
+        )
+
+        self.genbank_only_label.setText(
+            str(
+                len(
+                    result.genbank_only_entries
+                )
+            )
+        )
+
+        self.not_found_label.setText(
+            str(
+                len(
+                    result.not_found_entries
+                )
+            )
+        )
+
+        self.dataset_entries_label.setText(
+            str(
+                len(dataset_entries)
+            )
+        )
+
+        self.unique_downloads_label.setText(
+            str(
+                len(
+                    result.unique_download_records
+                )
+            )
+        )
+
+    def set_import_controls_enabled(
+        self,
+        enabled,
+    ):
+        self.browse_button.setEnabled(
+            enabled
+        )
+
+        self.analyze_button.setEnabled(
+            enabled
+            and bool(
+                self.spreadsheet_path
+            )
+        )
+
+        for controls in (
+            self.sheet_controls.values()
+        ):
+            controls[
+                "combo"
+            ].setEnabled(
+                enabled
+            )
+
+        self.keep_duplicates_radio.setEnabled(
+            enabled
+        )
+
+        self.remove_duplicates_radio.setEnabled(
+            enabled
+        )
+
+    def invalidate_validation(self):
+
+        self.current_validation_result = None
+
+        self.validation_results_group.hide()
+
+        self.validation_status_label.hide()

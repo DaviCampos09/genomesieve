@@ -27,6 +27,9 @@ class GenomeRecord:
     refseq_category: str
     assembly_level: str
 
+    source_database: str = ""
+    paired_accession: str | None = None
+
 
 @dataclass
 class GenomeSearchResult:
@@ -182,7 +185,7 @@ def _parse_datasets_output(output: str) -> list[GenomeRecord]:
             raw_records = [data]
 
         for raw_record in raw_records:
-            record = _parse_record(raw_record)
+            record = parse_genome_record(raw_record)
 
             if record is not None:
                 records.append(record)
@@ -190,7 +193,7 @@ def _parse_datasets_output(output: str) -> list[GenomeRecord]:
     return records
 
 
-def _parse_record(data: dict) -> GenomeRecord | None:
+def parse_genome_record(data: dict) -> GenomeRecord | None:
     accession = _get_value(
         data,
         "accession",
@@ -244,12 +247,31 @@ def _parse_record(data: dict) -> GenomeRecord | None:
         "assembly_level",
     ) or "Unknown"
 
+    source_database = _get_value(
+        data,
+        "sourceDatabase",
+        "source_database",
+    ) or ""
+
+    paired_assembly = _get_value(
+        data,
+        "pairedAssembly",
+        "paired_assembly",
+    ) or {}
+
+    paired_accession = _get_value(
+        paired_assembly,
+        "accession",
+    )
+
     return GenomeRecord(
         accession=accession,
         species=species,
         organism_name=organism_name,
         refseq_category=refseq_category,
         assembly_level=assembly_level,
+        source_database=source_database,
+        paired_accession=paired_accession,
     )
 
 
