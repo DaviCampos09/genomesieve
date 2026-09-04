@@ -15,6 +15,18 @@ ASSEMBLY_ACCESSION_PATTERN = re.compile(
 class SpreadsheetImportError(Exception):
     """Raised when a spreadsheet cannot be analyzed or imported."""
 
+@dataclass(frozen=True)
+class SpreadsheetColumn:
+    """
+    A column available for manual selection in the spreadsheet
+    import interface.
+    """
+
+    column_index: int
+    column_letter: str
+    label: str
+
+    examples: tuple[str, ...]
 
 @dataclass(frozen=True)
 class ColumnCandidate:
@@ -44,6 +56,7 @@ class SheetAnalysis:
 
     sheet_name: str
 
+    available_columns: tuple[SpreadsheetColumn, ...]
     candidate_columns: tuple[ColumnCandidate, ...]
 
     detected_column_index: int | None
@@ -419,6 +432,11 @@ def _analyze_sheet(worksheet):
                 )
             )
 
+    available_columns = (
+        _build_available_columns(
+            values_by_column
+        )
+    )
     candidates = []
 
     for column_index, values in (
@@ -513,6 +531,7 @@ def _analyze_sheet(worksheet):
             sheet_name=(
                 worksheet.title
             ),
+            available_columns=available_columns,
             candidate_columns=(),
             detected_column_index=None,
             detected_column_label=None,
@@ -542,6 +561,7 @@ def _analyze_sheet(worksheet):
         sheet_name=(
             worksheet.title
         ),
+        available_columns=available_columns,
         candidate_columns=tuple(
             candidates
         ),
@@ -647,6 +667,16 @@ def _get_candidate_label(
         ):
             return candidate.label
 
+    for column in (
+        sheet_analysis
+        .available_columns
+    ):
+        if (
+            column.column_index
+            == column_index
+        ):
+            return column.label
+
     return (
         f"Column "
         f"{get_column_letter(column_index)}"
@@ -699,3 +729,84 @@ def _validate_file(file_path):
         )
 
     return path
+
+def _build_available_columns(
+    values_by_column,
+):
+    columns = []
+
+    for column_index, values in sorted(
+        values_by_column.items()
+    ):
+        label = _infer_general_column_label(
+            values,
+            column_index,
+        )
+
+        examples = _get_column_examples(
+            values,
+            label,
+        )
+
+        columns.append(
+            SpreadsheetColumn(
+                column_index=column_index,
+                column_letter=(
+                    get_column_letter(
+                        column_index
+                    )
+                ),
+                label=label,
+                examples=examples,
+            )
+        )
+
+    return tuple(columns)
+
+
+def _infer_general_column_label(
+    values,
+    column_index,
+):
+    if not values:
+        return (
+            f"Column "
+            f"{get_column_letter(column_index)}"
+        )
+
+    first_value = values[0][1]
+
+    # If the first value is already an accession, the spreadsheet
+    # probably has no header for this column.
+    if is_valid_assembly_accession(
+        first_value
+    ):
+        return (
+            f"Column "
+            f"{get_column_letter(column_index)}"
+        )
+
+    return first_value
+
+
+def _get_column_examples(
+    values,
+    label,
+):
+    examples = []
+
+    for _, text in values:
+
+        if text == label:
+            continue
+
+        examples.append(
+            text
+        )
+
+        if len(examples) == 3:
+            break
+
+    return tuple(
+        examples
+    )

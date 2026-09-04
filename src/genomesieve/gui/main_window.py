@@ -19,12 +19,17 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QHBoxLayout,
     QProgressBar,
+    QStackedWidget,
 )
 
 from genomesieve.services.reporting import (
     ReportError,
     export_download_report,
     export_search_report,
+)
+
+from genomesieve.gui.spreadsheet_import_widget import (
+    SpreadsheetImportWidget,
 )
 
 from genomesieve.gui.search_worker import GenomeSearchWorker
@@ -64,6 +69,42 @@ class MainWindow(QMainWindow):
         )
 
         # ============================================================
+        # GENOME SOURCE
+        # ============================================================
+
+        source_group = QGroupBox(
+            "Genome source"
+        )
+
+        source_layout = QHBoxLayout()
+
+        self.search_by_genus_radio = QRadioButton(
+            "Search by genus"
+        )
+
+        self.import_spreadsheet_radio = QRadioButton(
+            "Import spreadsheet"
+        )
+
+        self.search_by_genus_radio.setChecked(
+            True
+        )
+
+        source_layout.addWidget(
+            self.search_by_genus_radio
+        )
+
+        source_layout.addWidget(
+            self.import_spreadsheet_radio
+        )
+
+        source_layout.addStretch()
+
+        source_group.setLayout(
+            source_layout
+        )
+
+        # ============================================================
         # GENUS
         # ============================================================
 
@@ -75,6 +116,48 @@ class MainWindow(QMainWindow):
         self.genus_error_label = QLabel()
         self.genus_error_label.setStyleSheet("color: red;")
         self.genus_error_label.hide()
+
+        genus_page = QWidget()
+
+        genus_page_layout = QVBoxLayout()
+
+        genus_page_layout.addWidget(
+            genus_label
+        )
+
+        genus_page_layout.addWidget(
+            self.genus_input
+        )
+
+        genus_page_layout.addWidget(
+            self.genus_error_label
+        )
+
+        genus_page.setLayout(
+            genus_page_layout
+        )
+
+        self.spreadsheet_import_widget = (
+            SpreadsheetImportWidget()
+        )
+
+        self.source_stack = QStackedWidget()
+
+        self.source_stack.addWidget(
+            genus_page
+        )
+
+        self.source_stack.addWidget(
+            self.spreadsheet_import_widget
+        )
+
+        self.search_by_genus_radio.toggled.connect(
+            self.update_genome_source
+        )
+
+        self.import_spreadsheet_radio.toggled.connect(
+            self.update_genome_source
+        )
 
         self.genus_input.editingFinished.connect(
             self.validate_genus_input
@@ -678,10 +761,12 @@ class MainWindow(QMainWindow):
 
         content_layout.addSpacing(20)
 
-        content_layout.addWidget(genus_label)
-        content_layout.addWidget(self.genus_input)
         content_layout.addWidget(
-            self.genus_error_label
+            source_group
+        )
+
+        content_layout.addWidget(
+            self.source_stack
         )
 
         content_layout.addSpacing(20)
@@ -1468,3 +1553,82 @@ class MainWindow(QMainWindow):
                 f"{report_path}"
             ),
         )
+
+    def update_genome_source(self):
+
+        import_mode = (
+            self.import_spreadsheet_radio
+            .isChecked()
+        )
+
+        if import_mode:
+
+            self.source_stack.setCurrentIndex(
+                1
+            )
+
+            # These filters belong specifically to genus-based search.
+            self.assembly_group.setEnabled(
+                False
+            )
+
+            self.selection_group.setEnabled(
+                False
+            )
+
+            self.unidentified_group.setEnabled(
+                False
+            )
+
+            # File formats remain enabled because they will also be used
+            # by spreadsheet downloads.
+            self.format_group.setEnabled(
+                True
+            )
+
+            self.search_button.hide()
+
+            self.search_status_label.hide()
+            self.results_group.hide()
+            self.download_group.hide()
+
+            self.current_search_result = None
+
+            self.search_report_button.setEnabled(
+                False
+            )
+
+        else:
+
+            self.source_stack.setCurrentIndex(
+                0
+            )
+
+            self.assembly_group.setEnabled(
+                True
+            )
+
+            self.selection_group.setEnabled(
+                True
+            )
+
+            self.unidentified_group.setEnabled(
+                True
+            )
+
+            self.format_group.setEnabled(
+                True
+            )
+
+            self.search_button.show()
+
+            # Do not restore old search results. The user should search
+            # again after changing source mode.
+            self.results_group.hide()
+            self.download_group.hide()
+
+            self.current_search_result = None
+
+            self.search_report_button.setEnabled(
+                False
+            )
