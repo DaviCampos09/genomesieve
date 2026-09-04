@@ -53,10 +53,17 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(750, 550)
 
         self.current_search_result = None
+        self.current_import_validation_result = None
         self.search_worker = None
 
         self.download_worker = None
         self.download_directory = None
+
+        self.last_download_report_records = []
+        self.last_download_destination = None
+        self.last_download_formats = []
+        self.last_download_source_type = None
+        self.last_download_source_name = None
 
         # ============================================================
         # HEADER
@@ -139,6 +146,10 @@ class MainWindow(QMainWindow):
 
         self.spreadsheet_import_widget = (
             SpreadsheetImportWidget()
+        )
+
+        self.spreadsheet_import_widget.validation_result_changed.connect(
+            self.handle_import_validation_result
         )
 
         self.source_stack = QStackedWidget()
@@ -1056,20 +1067,43 @@ class MainWindow(QMainWindow):
         self.update_download_button_state()
 
 
+    # def update_download_button_state(self):
+    #     can_download = (
+    #         self.current_search_result is not None
+    #         and self.current_search_result.selected_assemblies > 0
+    #         and bool(self.download_directory)
+    #     )
+
+    #     self.download_button.setEnabled(
+    #         can_download
+    #     )
+
     def update_download_button_state(self):
-        can_download = (
-            self.current_search_result is not None
-            and self.current_search_result.selected_assemblies > 0
-            and bool(self.download_directory)
+        records = self.get_current_download_records()
+
+        has_destination = bool(
+            self.download_directory
+        )
+
+        worker = getattr(
+            self,
+            "download_worker",
+            None,
+        )
+
+        worker_running = (
+            worker is not None
+            and worker.isRunning()
         )
 
         self.download_button.setEnabled(
-            can_download
+            bool(records)
+            and has_destination
+            and not worker_running
         )
 
     def start_genome_download(self):
-        if self.current_search_result is None:
-            return
+       
 
         if not self.download_directory:
             QMessageBox.warning(
@@ -1080,20 +1114,28 @@ class MainWindow(QMainWindow):
             return
 
         selected_records = (
-            self.current_search_result.selected_records
+            self.get_current_download_records()
         )
 
         if not selected_records:
             QMessageBox.warning(
                 self,
-                "Nothing to download",
-                "There are no selected assemblies to download.",
+                "No genomes available",
+                "There are no validated genomes available for download.",
             )
             return
 
         file_formats = self.get_selected_formats()
 
         self.set_search_controls_enabled(False)
+
+        # if (
+        #     self.import_spreadsheet_radio
+        #     .isChecked()
+        # ):
+        #     self.spreadsheet_import_widget.set_import_controls_enabled(
+        #         False
+        #     )
 
         self.search_button.setEnabled(False)
         self.browse_button.setEnabled(False)
@@ -1132,6 +1174,29 @@ class MainWindow(QMainWindow):
 
         self.download_report_button.hide()
 
+        # NOVO: salva exatamente o contexto deste download
+        self.active_download_records = list(
+            selected_records
+        )
+
+        self.active_download_report_records = (
+            self.get_current_download_report_records()
+        )
+
+        (
+            self.active_download_source_type,
+            self.active_download_source_name,
+        ) = self.get_current_download_source()
+
+        self.active_download_destination = (
+            self.download_directory
+        )
+
+        self.active_download_formats = list(
+            file_formats
+        )
+
+
         self.download_worker = GenomeDownloadWorker(
             records=selected_records,
             file_formats=file_formats,
@@ -1157,6 +1222,26 @@ class MainWindow(QMainWindow):
         self.download_worker.start()
 
     def handle_download_success(self, result):
+
+        self.last_download_report_records = list(
+            self.active_download_report_records
+        )
+
+        self.last_download_destination = (
+            self.active_download_destination
+        )
+
+        self.last_download_formats = list(
+            self.active_download_formats
+        )
+
+        self.last_download_source_type = (
+            self.active_download_source_type
+        )
+
+        self.last_download_source_name = (
+            self.active_download_source_name
+        )
 
         self.download_progress_bar.setRange(
             0,
@@ -1485,27 +1570,44 @@ class MainWindow(QMainWindow):
 
     def export_current_download_report(self):
 
-        if self.current_search_result is None:
+        # There must be a successfully completed download
+        # available for reporting.
+        if not self.last_download_report_records:
+            QMessageBox.warning(
+                self,
+                "No download report available",
+                "Complete a genome download before exporting the report.",
+            )
             return
 
-        if not self.download_directory:
+        if not self.last_download_destination:
+            QMessageBox.warning(
+                self,
+                "No download report available",
+                "The destination of the last download is unavailable.",
+            )
             return
 
-        genus = self.genus_input.text().strip()
+        source_name = (
+            self.last_download_source_name
+            or "download"
+        )
 
-        safe_genus = "".join(
+        safe_source_name = "".join(
             character
             if character.isalnum()
             else "_"
-            for character in genus
+            for character in source_name
         ).strip("_")
 
         default_filename = (
-            f"genomesieve_{safe_genus}_download_report.csv"
+            f"genomesieve_{safe_source_name}_download_report.csv"
         )
 
         default_path = str(
-            Path(self.download_directory)
+            Path(
+                self.last_download_destination
+            )
             / default_filename
         )
 
@@ -1525,12 +1627,21 @@ class MainWindow(QMainWindow):
             output_path += ".csv"
 
         try:
-            report_path = export_download_report(
-                result=self.current_search_result,
-                destination=self.download_directory,
-                genus=genus,
+            export_download_report(
+                records=(
+                    self.last_download_report_records
+                ),
+                destination=(
+                    self.last_download_destination
+                ),
+                source_type=(
+                    self.last_download_source_type
+                ),
+                source_name=(
+                    self.last_download_source_name
+                ),
                 file_formats=(
-                    self.get_selected_formats()
+                    self.last_download_formats
                 ),
                 output_path=output_path,
             )
@@ -1550,7 +1661,7 @@ class MainWindow(QMainWindow):
             "Download report",
             (
                 "Download report exported successfully.\n\n"
-                f"{report_path}"
+                f"{output_path}"
             ),
         )
 
@@ -1587,16 +1698,28 @@ class MainWindow(QMainWindow):
             )
 
             self.search_button.hide()
-
             self.search_status_label.hide()
             self.results_group.hide()
-            self.download_group.hide()
-
+            
             self.current_search_result = None
 
             self.search_report_button.setEnabled(
                 False
             )
+
+            # NOVA PARTE DA ETAPA D
+            if (
+                self.current_import_validation_result
+                is not None
+                and self.current_import_validation_result
+                .unique_download_records
+            ):
+                self.download_group.show()
+
+                self.update_download_button_state()
+
+            else:
+                self.download_group.hide()
 
         else:
 
@@ -1632,3 +1755,139 @@ class MainWindow(QMainWindow):
             self.search_report_button.setEnabled(
                 False
             )
+
+    def handle_import_validation_result(
+        self,
+        result,
+    ):
+        self.current_import_validation_result = (
+            result
+        )
+
+        if not (
+            self.import_spreadsheet_radio
+            .isChecked()
+        ):
+            return
+
+        if (
+            result is None
+            or not result.unique_download_records
+        ):
+            self.download_group.hide()
+
+            return
+
+        self.download_group.show()
+
+        self.update_download_button_state()
+
+    def get_current_download_records(self):
+        """
+        Return the GenomeRecords that must physically be downloaded.
+
+        Spreadsheet imports are always physically deduplicated.
+        """
+
+        if (
+            self.import_spreadsheet_radio
+            .isChecked()
+        ):
+
+            result = (
+                self.current_import_validation_result
+            )
+
+            if result is None:
+                return []
+
+            return list(
+                result.unique_download_records
+            )
+
+        if self.current_search_result is None:
+            return []
+
+        return list(
+            self.current_search_result
+            .selected_records
+        )
+    
+    def get_current_download_report_records(
+        self,
+    ):
+        """
+        Return the logical dataset entries for the download report.
+
+        Unlike the physical download list, spreadsheet duplicates may be
+        preserved here according to the user's preference.
+        """
+
+        if (
+            self.import_spreadsheet_radio
+            .isChecked()
+        ):
+
+            result = (
+                self.current_import_validation_result
+            )
+
+            if result is None:
+                return []
+
+            keep_duplicates = (
+                self.spreadsheet_import_widget
+                .keep_duplicates_radio
+                .isChecked()
+            )
+
+            dataset_entries = (
+                result.get_dataset_entries(
+                    keep_duplicates=(
+                        keep_duplicates
+                    )
+                )
+            )
+
+            return [
+                entry.record
+                for entry in dataset_entries
+                if entry.record is not None
+            ]
+
+        if self.current_search_result is None:
+            return []
+
+        return list(
+            self.current_search_result
+            .selected_records
+        )
+    
+    def get_current_download_source(
+        self,
+    ):
+        if (
+            self.import_spreadsheet_radio
+            .isChecked()
+        ):
+
+            path = (
+                self.spreadsheet_import_widget
+                .spreadsheet_path
+            )
+
+            if path:
+                return (
+                    "spreadsheet_import",
+                    Path(path).name,
+                )
+
+            return (
+                "spreadsheet_import",
+                "",
+            )
+
+        return (
+            "genus_search",
+            self.genus_input.text().strip(),
+        )

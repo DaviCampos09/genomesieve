@@ -35,6 +35,7 @@ class SpreadsheetImportWidget(QWidget):
     """
 
     import_result_changed = Signal(object)
+    validation_result_changed = Signal(object)
 
     def __init__(self):
         super().__init__()
@@ -1018,6 +1019,10 @@ class SpreadsheetImportWidget(QWidget):
             result
         )
 
+        self.validation_result_changed.emit(
+            result
+        )
+
         self.validation_status_label.setText(
             "NCBI validation completed successfully."
         )
@@ -1171,3 +1176,7 @@ class SpreadsheetImportWidget(QWidget):
         self.validation_results_group.hide()
 
         self.validation_status_label.hide()
+
+        self.validation_result_changed.emit(
+            None
+        )

@@ -123,32 +123,38 @@ def export_search_report(
 
 
 def export_download_report(
-    result: GenomeSearchResult,
-    destination: str,
-    genus: str,
-    file_formats: list[str],
-    output_path: str,
+    records,
+    destination,
+    source_type,
+    source_name,
+    file_formats,
+    output_path,
 ):
-    """
-    Export metadata for the assemblies included in a successful
-    GenomeSieve download.
-    """
-
-    destination_path = Path(destination)
-
-    timestamp = datetime.now().astimezone()
-
-    timestamp_text = timestamp.isoformat(
-        timespec="seconds"
+    destination_path = Path(
+        destination
     )
 
-    report_path = Path(
+    output_path = Path(
         output_path
+    )
+
+    output_path.parent.mkdir(
+        parents=True,
+        exist_ok=True,
+    )
+
+    timestamp = (
+        datetime.now()
+        .astimezone()
+        .isoformat(
+            timespec="seconds"
+        )
     )
 
     fieldnames = [
         "download_timestamp",
-        "genus",
+        "source_type",
+        "source_name",
         "accession",
         "species",
         "organism_name",
@@ -158,64 +164,59 @@ def export_download_report(
         "files_present",
     ]
 
-    try:
-        report_path.parent.mkdir(
-            parents=True,
-            exist_ok=True,
+    with output_path.open(
+        "w",
+        newline="",
+        encoding="utf-8",
+    ) as csv_file:
+
+        writer = csv.DictWriter(
+            csv_file,
+            fieldnames=fieldnames,
         )
 
-        with report_path.open(
-            "w",
-            newline="",
-            encoding="utf-8",
-        ) as csv_file:
+        writer.writeheader()
 
-            writer = csv.DictWriter(
-                csv_file,
-                fieldnames=fieldnames,
+        for record in records:
+
+            files = sorted(
+                file.name
+                for file
+                in destination_path.glob(
+                    f"{record.accession}*"
+                )
             )
 
-            writer.writeheader()
-
-            for record in result.selected_records:
-
-                files = _find_assembly_files(
-                    destination_path,
-                    record.accession,
-                )
-
-                writer.writerow(
-                    {
-                        "download_timestamp": (
-                            timestamp_text
-                        ),
-                        "genus": genus,
-                        "accession": record.accession,
-                        "species": record.species or "",
-                        "organism_name": (
-                            record.organism_name
-                        ),
-                        "refseq_category": (
-                            record.refseq_category
-                        ),
-                        "assembly_level": (
-                            record.assembly_level
-                        ),
-                        "requested_formats": "|".join(
+            writer.writerow(
+                {
+                    "download_timestamp": timestamp,
+                    "source_type": source_type,
+                    "source_name": source_name,
+                    "accession": record.accession,
+                    "species": (
+                        record.species or ""
+                    ),
+                    "organism_name": (
+                        record.organism_name
+                    ),
+                    "refseq_category": (
+                        record.refseq_category
+                    ),
+                    "assembly_level": (
+                        record.assembly_level
+                    ),
+                    "requested_formats": (
+                        ",".join(
                             file_formats
-                        ),
-                        "files_present": "|".join(
+                        )
+                    ),
+                    "files_present": (
+                        ",".join(
                             files
-                        ),
-                    }
-                )
-
-    except OSError as exc:
-        raise ReportError(
-            f"Could not save download report: {exc}"
-        ) from exc
-
-    return report_path
+                        )
+                    ),
+                }
+            )
 
 
 def _get_selection_explanation(
