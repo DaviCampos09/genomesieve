@@ -26,6 +26,10 @@ from genomesieve.gui.spreadsheet_validation_worker import (
     SpreadsheetValidationWorker,
 )
 
+from genomesieve.gui.styles import (
+    configure_primary_button,
+)
+
 
 class SpreadsheetImportWidget(QWidget):
     """
@@ -85,6 +89,10 @@ class SpreadsheetImportWidget(QWidget):
 
         self.analyze_button = QPushButton(
             "Analyze spreadsheet"
+        )
+
+        configure_primary_button(
+            self.analyze_button
         )
 
         self.analyze_button.setEnabled(
@@ -301,6 +309,10 @@ class SpreadsheetImportWidget(QWidget):
             QPushButton(
                 "Validate with NCBI"
             )
+        )
+
+        configure_primary_button(
+            self.validate_ncbi_button
         )
 
         self.validate_ncbi_button.setEnabled(

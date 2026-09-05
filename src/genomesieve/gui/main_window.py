@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from PySide6.QtGui import QIcon, QPalette
+from PySide6.QtGui import QIcon
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -30,6 +30,10 @@ from genomesieve.services.reporting import (
 
 from genomesieve.gui.spreadsheet_import_widget import (
     SpreadsheetImportWidget,
+)
+
+from genomesieve.gui.styles import (
+    configure_primary_button,
 )
 
 from genomesieve.gui.search_worker import GenomeSearchWorker
@@ -505,7 +509,7 @@ class MainWindow(QMainWindow):
             "Search genomes"
         )
 
-        self.configure_primary_button(
+        configure_primary_button(
             self.search_button
         )
 
@@ -722,7 +726,7 @@ class MainWindow(QMainWindow):
             "Download genomes"
         )
 
-        self.configure_primary_button(
+        configure_primary_button(
             self.download_button
         )
 
@@ -870,61 +874,6 @@ class MainWindow(QMainWindow):
         scroll_area.setWidget(content_widget)
 
         self.setCentralWidget(scroll_area)
-
-    def configure_primary_button(self, button):
-        font = button.font()
-        font.setBold(True)
-        button.setFont(font)
-
-        button.setMinimumHeight(
-            button.sizeHint().height() + 8
-        )
-
-        palette = button.palette()
-
-        accent_color = palette.color(
-            QPalette.ColorRole.Highlight
-        )
-
-        accent_text_color = palette.color(
-            QPalette.ColorRole.HighlightedText
-        )
-
-        disabled_background = palette.color(
-            QPalette.ColorGroup.Disabled,
-            QPalette.ColorRole.Button,
-        )
-
-        disabled_text = palette.color(
-            QPalette.ColorGroup.Disabled,
-            QPalette.ColorRole.ButtonText,
-        )
-
-        button.setStyleSheet(
-            f"""
-            QPushButton {{
-                background-color: {accent_color.name()};
-                color: {accent_text_color.name()};
-                border: 1px solid {accent_color.darker(115).name()};
-                border-radius: 4px;
-                padding: 6px 12px;
-            }}
-
-            QPushButton:hover {{
-                background-color: {accent_color.lighter(108).name()};
-            }}
-
-            QPushButton:pressed {{
-                background-color: {accent_color.darker(108).name()};
-            }}
-
-            QPushButton:disabled {{
-                background-color: {disabled_background.name()};
-                color: {disabled_text.name()};
-                border-color: {disabled_background.darker(110).name()};
-            }}
-            """
-        )
 
     def create_result_metric(
         self,
