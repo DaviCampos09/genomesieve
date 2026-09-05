@@ -516,116 +516,125 @@ class MainWindow(QMainWindow):
         # FIRST ROW
         # ============================================================
 
-        assemblies_found_title = QLabel("Assemblies found")
         self.total_assemblies_label = QLabel("0")
 
-        identified_species_title = QLabel("Identified species")
         self.identified_species_label = QLabel("0")
 
-        unidentified_title = QLabel("Unidentified assemblies")
         self.unidentified_assemblies_label = QLabel("0")
 
         results_layout.addWidget(
-            assemblies_found_title,
+            self.create_result_metric(
+                self.total_assemblies_label,
+                "Assemblies found",
+            ),
             0,
             0,
-            alignment=Qt.AlignCenter,
         )
 
         results_layout.addWidget(
-            identified_species_title,
+            self.create_result_metric(
+                self.identified_species_label,
+                "Identified species",
+            ),
             0,
             1,
-            alignment=Qt.AlignCenter,
         )
 
         results_layout.addWidget(
-            unidentified_title,
+            self.create_result_metric(
+                self.unidentified_assemblies_label,
+                "Unidentified assemblies",
+            ),
             0,
             2,
-            alignment=Qt.AlignCenter,
         )
 
-        results_layout.addWidget(
-            self.total_assemblies_label,
-            1,
-            0,
-            alignment=Qt.AlignCenter,
-        )
+        # results_layout.addWidget(
+        #     self.total_assemblies_label,
+        #     1,
+        #     0,
+        #     alignment=Qt.AlignCenter,
+        # )
 
-        results_layout.addWidget(
-            self.identified_species_label,
-            1,
-            1,
-            alignment=Qt.AlignCenter,
-        )
+        # results_layout.addWidget(
+        #     self.identified_species_label,
+        #     1,
+        #     1,
+        #     alignment=Qt.AlignCenter,
+        # )
 
-        results_layout.addWidget(
-            self.unidentified_assemblies_label,
-            1,
-            2,
-            alignment=Qt.AlignCenter,
-        )
+        # results_layout.addWidget(
+        #     self.unidentified_assemblies_label,
+        #     1,
+        #     2,
+        #     alignment=Qt.AlignCenter,
+        # )
 
         # ============================================================
         # SECOND ROW
         # ============================================================
 
-        selected_assemblies_title = QLabel("Selected assemblies")
         self.selected_assemblies_label = QLabel("0")
 
-        selected_species_title = QLabel("Selected species")
         self.selected_species_label = QLabel("0")
 
-        reference_genomes_title = QLabel("Reference genomes selected")
         self.reference_genomes_label = QLabel("0")
 
         results_layout.addWidget(
-            selected_assemblies_title,
-            2,
-            0,
-            alignment=Qt.AlignCenter,
-        )
-
-        results_layout.addWidget(
-            selected_species_title,
-            2,
+            self.create_result_metric(
+                self.selected_assemblies_label,
+                "Selected assemblies",
+            ),
             1,
-            alignment=Qt.AlignCenter,
-        )
-
-        results_layout.addWidget(
-            reference_genomes_title,
-            2,
-            2,
-            alignment=Qt.AlignCenter,
-        )
-
-        results_layout.addWidget(
-            self.selected_assemblies_label,
-            3,
             0,
-            alignment=Qt.AlignCenter,
         )
 
         results_layout.addWidget(
-            self.selected_species_label,
-            3,
+            self.create_result_metric(
+                self.selected_species_label,
+                "Selected species",
+            ),
             1,
-            alignment=Qt.AlignCenter,
+            1,
         )
 
         results_layout.addWidget(
-            self.reference_genomes_label,
-            3,
+            self.create_result_metric(
+                self.reference_genomes_label,
+                "Reference genomes selected",
+            ),
+            1,
             2,
-            alignment=Qt.AlignCenter,
         )
+
+        # results_layout.addWidget(
+        #     self.selected_assemblies_label,
+        #     3,
+        #     0,
+        #     alignment=Qt.AlignCenter,
+        # )
+
+        # results_layout.addWidget(
+        #     self.selected_species_label,
+        #     3,
+        #     1,
+        #     alignment=Qt.AlignCenter,
+        # )
+
+        # results_layout.addWidget(
+        #     self.reference_genomes_label,
+        #     3,
+        #     2,
+        #     alignment=Qt.AlignCenter,
+        # )
 
         # Give all columns equal space.
         results_layout.setColumnStretch(0, 1)
         results_layout.setColumnStretch(1, 1)
         results_layout.setColumnStretch(2, 1)
+
+        results_layout.setHorizontalSpacing(12)
+        results_layout.setVerticalSpacing(10)
 
         # ============================================================
         # SEARCH REPORT EXPORT
@@ -669,7 +678,7 @@ class MainWindow(QMainWindow):
 
         results_layout.addLayout(
             search_report_layout,
-            4,
+            2,
             0,
             1,
             3,
@@ -930,6 +939,88 @@ class MainWindow(QMainWindow):
             }}
             """
         )
+
+    def create_result_metric(
+        self,
+        value_label,
+        description,
+    ):
+        value_label.setAlignment(
+            Qt.AlignCenter
+        )
+
+        value_font = value_label.font()
+        value_font.setBold(True)
+
+        current_size = value_font.pointSizeF()
+
+        if current_size > 0:
+            value_font.setPointSizeF(
+                current_size + 5
+            )
+
+        value_label.setFont(
+            value_font
+        )
+
+        description_label = QLabel(
+            description
+        )
+
+        description_label.setAlignment(
+            Qt.AlignCenter
+        )
+
+        description_label.setWordWrap(
+            True
+        )
+
+        description_font = (
+            description_label.font()
+        )
+
+        current_description_size = (
+            description_font.pointSizeF()
+        )
+
+        if current_description_size > 0:
+            description_font.setPointSizeF(
+                max(
+                    current_description_size - 1,
+                    8,
+                )
+            )
+
+        description_label.setFont(
+            description_font
+        )
+
+        metric_layout = QVBoxLayout()
+
+        metric_layout.setContentsMargins(
+            4,
+            6,
+            4,
+            6,
+        )
+
+        metric_layout.setSpacing(2)
+
+        metric_layout.addWidget(
+            value_label
+        )
+
+        metric_layout.addWidget(
+            description_label
+        )
+
+        metric_widget = QWidget()
+
+        metric_widget.setLayout(
+            metric_layout
+        )
+
+        return metric_widget
 
     # ================================================================
     # GENUS VALIDATION
