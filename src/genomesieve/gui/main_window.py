@@ -461,27 +461,41 @@ class MainWindow(QMainWindow):
         # FILTER GRID
         # ============================================================
 
-        filters_layout = QGridLayout()
+        self.filters_layout = QGridLayout()
 
-        filters_layout.addWidget(
-            self.assembly_group, 0, 0
+        self.filters_layout.addWidget(
+            self.assembly_group,
+            0,
+            0,
         )
 
-        filters_layout.addWidget(
-            self.format_group, 0, 1
+        self.filters_layout.addWidget(
+            self.format_group,
+            0,
+            1,
         )
 
-        filters_layout.addWidget(
-            self.selection_group, 1, 0
+        self.filters_layout.addWidget(
+            self.selection_group,
+            1,
+            0,
         )
 
-        filters_layout.addWidget(
-            self.unidentified_group, 1, 1
+        self.filters_layout.addWidget(
+            self.unidentified_group,
+            1,
+            1,
         )
 
+        self.filters_layout.setColumnStretch(
+            0,
+            1,
+        )
 
-        filters_layout.setColumnStretch(0, 1)
-        filters_layout.setColumnStretch(1, 1)
+        self.filters_layout.setColumnStretch(
+            1,
+            1,
+        )
 
         # ============================================================
         # SEARCH BUTTON
@@ -824,7 +838,7 @@ class MainWindow(QMainWindow):
 
         content_layout.addSpacing(20)
 
-        content_layout.addLayout(filters_layout)
+        content_layout.addLayout(self.filters_layout)
 
         content_layout.addSpacing(15)
 
@@ -993,6 +1007,48 @@ class MainWindow(QMainWindow):
         )
 
         return metric_widget
+    
+    def update_filter_layout_for_source(
+        self,
+        import_mode,
+    ):
+        genus_filters_visible = not import_mode
+
+        self.assembly_group.setVisible(
+            genus_filters_visible
+        )
+
+        self.selection_group.setVisible(
+            genus_filters_visible
+        )
+
+        self.unidentified_group.setVisible(
+            genus_filters_visible
+        )
+
+        self.format_group.setVisible(True)
+
+        self.filters_layout.removeWidget(
+            self.format_group
+        )
+
+        if import_mode:
+            self.filters_layout.addWidget(
+                self.format_group,
+                0,
+                0,
+                1,
+                2,
+            )
+
+        else:
+            self.filters_layout.addWidget(
+                self.format_group,
+                0,
+                1,
+            )
+
+        self.filters_layout.invalidate()
 
     # ================================================================
     # GENUS VALIDATION
@@ -1849,6 +1905,10 @@ class MainWindow(QMainWindow):
         import_mode = (
             self.import_spreadsheet_radio
             .isChecked()
+        )
+
+        self.update_filter_layout_for_source(
+            import_mode
         )
 
         if import_mode:
