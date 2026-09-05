@@ -1,5 +1,11 @@
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QPalette
-from PySide6.QtWidgets import QPushButton
+from PySide6.QtWidgets import (
+    QLabel,
+    QPushButton,
+    QVBoxLayout,
+    QWidget,
+)
 
 
 def configure_primary_button(
@@ -58,3 +64,86 @@ def configure_primary_button(
         }}
         """
     )
+
+def create_result_metric(
+    value_label: QLabel,
+    description: str,
+) -> QWidget:
+    value_label.setAlignment(
+        Qt.AlignmentFlag.AlignCenter
+    )
+
+    value_font = value_label.font()
+    value_font.setBold(True)
+
+    current_size = value_font.pointSizeF()
+
+    if current_size > 0:
+        value_font.setPointSizeF(
+            current_size + 5
+        )
+
+    value_label.setFont(
+        value_font
+    )
+
+    description_label = QLabel(
+        description
+    )
+
+    description_label.setAlignment(
+        Qt.AlignmentFlag.AlignCenter
+    )
+
+    description_label.setWordWrap(
+        True
+    )
+
+    description_font = (
+        description_label.font()
+    )
+
+    current_description_size = (
+        description_font.pointSizeF()
+    )
+
+    if current_description_size > 0:
+        description_font.setPointSizeF(
+            max(
+                current_description_size - 1,
+                8,
+            )
+        )
+
+    description_label.setFont(
+        description_font
+    )
+
+    metric_layout = QVBoxLayout()
+
+    metric_layout.setContentsMargins(
+        4,
+        6,
+        4,
+        6,
+    )
+
+    metric_layout.setSpacing(
+        2
+    )
+
+    metric_layout.addWidget(
+        value_label
+    )
+
+    metric_layout.addWidget(
+        description_label
+    )
+
+    metric_widget = QWidget()
+
+    metric_widget.setLayout(
+        metric_layout
+    )
+
+    return metric_widget

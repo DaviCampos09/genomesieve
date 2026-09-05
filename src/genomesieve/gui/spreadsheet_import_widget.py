@@ -28,6 +28,7 @@ from genomesieve.gui.spreadsheet_validation_worker import (
 
 from genomesieve.gui.styles import (
     configure_primary_button,
+    create_result_metric,
 )
 
 
@@ -152,74 +153,78 @@ class SpreadsheetImportWidget(QWidget):
 
         preview_layout = QGridLayout()
 
-        preview_layout.addWidget(
-            QLabel("Entries found"),
-            0,
-            0,
-        )
-
         self.entries_label = QLabel("0")
-
-        preview_layout.addWidget(
-            self.entries_label,
-            1,
-            0,
-        )
-
-        preview_layout.addWidget(
-            QLabel("Unique accessions"),
-            0,
-            1,
-        )
-
         self.unique_label = QLabel("0")
-
-        preview_layout.addWidget(
-            self.unique_label,
-            1,
-            1,
-        )
-
-        preview_layout.addWidget(
-            QLabel("Duplicate entries"),
-            0,
-            2,
-        )
-
         self.duplicates_label = QLabel("0")
-
-        preview_layout.addWidget(
-            self.duplicates_label,
-            1,
-            2,
-        )
-
-        preview_layout.addWidget(
-            QLabel("Invalid entries"),
-            2,
-            0,
-        )
-
         self.invalid_label = QLabel("0")
-
-        preview_layout.addWidget(
-            self.invalid_label,
-            3,
-            0,
-        )
-
-        preview_layout.addWidget(
-            QLabel("Sheets included"),
-            2,
-            1,
-        )
-
         self.sheets_label = QLabel("0")
 
         preview_layout.addWidget(
-            self.sheets_label,
-            3,
+            create_result_metric(
+                self.entries_label,
+                "Entries found",
+            ),
+            0,
+            0,
+        )
+
+        preview_layout.addWidget(
+            create_result_metric(
+                self.unique_label,
+                "Unique accessions",
+            ),
+            0,
             1,
+        )
+
+        preview_layout.addWidget(
+            create_result_metric(
+                self.duplicates_label,
+                "Duplicate entries",
+            ),
+            0,
+            2,
+        )
+
+        preview_layout.addWidget(
+            create_result_metric(
+                self.invalid_label,
+                "Invalid entries",
+            ),
+            1,
+            0,
+        )
+
+        preview_layout.addWidget(
+            create_result_metric(
+                self.sheets_label,
+                "Sheets included",
+            ),
+            1,
+            1,
+        )
+
+        preview_layout.setColumnStretch(
+            0,
+            1,
+        )
+
+        preview_layout.setColumnStretch(
+            1,
+            1,
+        )
+
+        preview_layout.setColumnStretch(
+            2,
+            1,
+        )
+
+        preview_layout.setHorizontalSpacing(
+            12
+        )
+
+        preview_layout.setVerticalSpacing(
+            10
         )
 
         preview_layout.setColumnStretch(
@@ -248,7 +253,7 @@ class SpreadsheetImportWidget(QWidget):
 
         preview_layout.addWidget(
             self.preview_note,
-            4,
+            2,
             0,
             1,
             3,
@@ -372,93 +377,66 @@ class SpreadsheetImportWidget(QWidget):
             "Validated import"
         )
 
-        validation_results_layout = (
-            QGridLayout()
-        )
-
-        # Row 1
-        validation_results_layout.addWidget(
-            QLabel("Ready for RefSeq"),
-            0,
-            0,
-        )
+        validation_results_layout = QGridLayout()
 
         self.ready_label = QLabel("0")
-
-        validation_results_layout.addWidget(
-            self.ready_label,
-            1,
-            0,
-        )
-
-        validation_results_layout.addWidget(
-            QLabel("GCA resolved to GCF"),
-            0,
-            1,
-        )
-
         self.resolved_label = QLabel("0")
-
-        validation_results_layout.addWidget(
-            self.resolved_label,
-            1,
-            1,
-        )
-
-        validation_results_layout.addWidget(
-            QLabel("GenBank-only"),
-            0,
-            2,
-        )
-
         self.genbank_only_label = QLabel("0")
-
-        validation_results_layout.addWidget(
-            self.genbank_only_label,
-            1,
-            2,
-        )
-
-        # Row 2
-        validation_results_layout.addWidget(
-            QLabel("Not found"),
-            2,
-            0,
-        )
-
         self.not_found_label = QLabel("0")
-
-        validation_results_layout.addWidget(
-            self.not_found_label,
-            3,
-            0,
-        )
-
-        validation_results_layout.addWidget(
-            QLabel("Dataset entries"),
-            2,
-            1,
-        )
-
         self.dataset_entries_label = QLabel("0")
-
-        validation_results_layout.addWidget(
-            self.dataset_entries_label,
-            3,
-            1,
-        )
-
-        validation_results_layout.addWidget(
-            QLabel("Unique downloads"),
-            2,
-            2,
-        )
-
         self.unique_downloads_label = QLabel("0")
 
         validation_results_layout.addWidget(
-            self.unique_downloads_label,
-            3,
+            create_result_metric(
+                self.ready_label,
+                "Ready for RefSeq",
+            ),
+            0,
+            0,
+        )
+
+        validation_results_layout.addWidget(
+            create_result_metric(
+                self.resolved_label,
+                "GCA resolved to GCF",
+            ),
+            0,
+            1,
+        )
+
+        validation_results_layout.addWidget(
+            create_result_metric(
+                self.genbank_only_label,
+                "GenBank-only",
+            ),
+            0,
+            2,
+        )
+
+        validation_results_layout.addWidget(
+            create_result_metric(
+                self.not_found_label,
+                "Not found",
+            ),
+            1,
+            0,
+        )
+
+        validation_results_layout.addWidget(
+            create_result_metric(
+                self.dataset_entries_label,
+                "Dataset entries",
+            ),
+            1,
+            1,
+        )
+
+        validation_results_layout.addWidget(
+            create_result_metric(
+                self.unique_downloads_label,
+                "Unique downloads",
+            ),
+            1,
             2,
         )
 
@@ -475,6 +453,14 @@ class SpreadsheetImportWidget(QWidget):
         validation_results_layout.setColumnStretch(
             2,
             1,
+        )
+
+        validation_results_layout.setHorizontalSpacing(
+            12
+        )
+
+        validation_results_layout.setVerticalSpacing(
+            10
         )
 
         self.validation_note = QLabel(
@@ -487,7 +473,7 @@ class SpreadsheetImportWidget(QWidget):
 
         validation_results_layout.addWidget(
             self.validation_note,
-            4,
+            2,
             0,
             1,
             3,
