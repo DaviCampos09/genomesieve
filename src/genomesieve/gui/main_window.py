@@ -44,6 +44,23 @@ csv_icon = QIcon(
     str(assets_dir / "csv.svg")
 )
 
+class CurrentPageStackedWidget(QStackedWidget):
+    def sizeHint(self):
+        current_widget = self.currentWidget()
+
+        if current_widget is not None:
+            return current_widget.sizeHint()
+
+        return super().sizeHint()
+
+    def minimumSizeHint(self):
+        current_widget = self.currentWidget()
+
+        if current_widget is not None:
+            return current_widget.minimumSizeHint()
+
+        return super().minimumSizeHint()
+
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -71,8 +88,34 @@ class MainWindow(QMainWindow):
 
         title_label = QLabel("GenomeSieve")
 
+        title_font = title_label.font()
+        title_font.setBold(True)
+        title_font.setPointSize(
+            title_font.pointSize() + 4
+        )
+        title_label.setFont(title_font)
+
         description_label = QLabel(
             "Search, filter, and download genome datasets from NCBI."
+        )
+
+        description_label.setWordWrap(True)
+
+        header_layout = QVBoxLayout()
+        header_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0,
+        )
+        header_layout.setSpacing(2)
+
+        header_layout.addWidget(
+            title_label
+        )
+
+        header_layout.addWidget(
+            description_label
         )
 
         # ============================================================
@@ -128,6 +171,15 @@ class MainWindow(QMainWindow):
 
         genus_page_layout = QVBoxLayout()
 
+        genus_page_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0,
+        )
+
+        genus_page_layout.setSpacing(6)
+
         genus_page_layout.addWidget(
             genus_label
         )
@@ -152,7 +204,7 @@ class MainWindow(QMainWindow):
             self.handle_import_validation_result
         )
 
-        self.source_stack = QStackedWidget()
+        self.source_stack = CurrentPageStackedWidget()
 
         self.source_stack.addWidget(
             genus_page
@@ -345,7 +397,7 @@ class MainWindow(QMainWindow):
         # ============================================================
 
         self.unidentified_group = QGroupBox(
-            "Unidentified species"
+            "Species filtering"
         )
 
         unidentified_layout = QVBoxLayout()
@@ -767,10 +819,11 @@ class MainWindow(QMainWindow):
 
         content_layout = QVBoxLayout()
 
-        content_layout.addWidget(title_label)
-        content_layout.addWidget(description_label)
+        content_layout.addLayout(
+            header_layout
+        )
 
-        content_layout.addSpacing(20)
+        content_layout.addSpacing(12)
 
         content_layout.addWidget(
             source_group
@@ -1755,6 +1808,8 @@ class MainWindow(QMainWindow):
             self.search_report_button.setEnabled(
                 False
             )
+
+        self.source_stack.updateGeometry()
 
     def handle_import_validation_result(
         self,
