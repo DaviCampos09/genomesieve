@@ -640,24 +640,10 @@ class MainWindow(QMainWindow):
         # SEARCH REPORT EXPORT
         # ============================================================
 
-        self.search_report_button = QPushButton()
+        self.search_report_button = QPushButton("Export search report")
 
         self.search_report_button.setIcon(
             QIcon(csv_icon)
-        )
-
-        self.search_report_button.setToolTip(
-            "Export search and selection report as CSV"
-        )
-
-        self.search_report_button.setFixedSize(40, 32)
-
-        self.search_report_button.setToolTip(
-            "Export search and selection report as CSV"
-        )
-
-        self.search_report_button.setMaximumWidth(
-            90
         )
 
         self.search_report_button.setEnabled(
@@ -758,24 +744,10 @@ class MainWindow(QMainWindow):
         # DOWNLOAD REPORT EXPORT
         # ============================================================
 
-        self.download_report_button = QPushButton()
+        self.download_report_button = QPushButton("Export download report")
 
         self.download_report_button.setIcon(
             QIcon(csv_icon)
-        )
-
-        self.download_report_button.setToolTip(
-            "Export downloaded genomes report as CSV"
-        )
-
-        self.download_report_button.setFixedSize(40, 32)
-
-        self.download_report_button.setToolTip(
-            "Export downloaded genomes report as CSV"
-        )
-
-        self.download_report_button.setMaximumWidth(
-            90
         )
 
         # There is no valid download report until a download
