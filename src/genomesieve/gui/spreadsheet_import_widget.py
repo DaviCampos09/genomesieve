@@ -127,10 +127,14 @@ class SpreadsheetImportWidget(QWidget):
         # ============================================================
 
         self.sheets_group = QGroupBox(
-            "Assembly accession columns"
+            "Assembly accession mapping"
         )
 
         self.sheets_layout = QVBoxLayout()
+
+        self.sheets_layout.setSpacing(
+            6
+        )
 
         self.sheets_group.setLayout(
             self.sheets_layout
@@ -610,6 +614,19 @@ class SpreadsheetImportWidget(QWidget):
     def build_sheet_controls(self):
         self.clear_sheet_controls()
 
+        instruction_label = QLabel(
+            "Confirm the column containing Assembly Accessions "
+            "for each sheet."
+        )
+
+        instruction_label.setWordWrap(
+            True
+        )
+
+        self.sheets_layout.addWidget(
+            instruction_label
+        )
+
         for sheet in self.analysis.sheets:
 
             sheet_group = QGroupBox(
@@ -617,6 +634,21 @@ class SpreadsheetImportWidget(QWidget):
             )
 
             layout = QGridLayout()
+
+            layout.setContentsMargins(
+                10,
+                6,
+                10,
+                8,
+            )
+
+            layout.setHorizontalSpacing(
+                12
+            )
+
+            layout.setVerticalSpacing(
+                4
+            )
 
             column_label = QLabel(
                 "Assembly accession column"
@@ -721,6 +753,10 @@ class SpreadsheetImportWidget(QWidget):
                 1,
                 2,
             )
+
+            layout.setColumnStretch(0,0,)
+
+            layout.setColumnStretch(1,1,)
 
             sheet_group.setLayout(
                 layout
