@@ -664,6 +664,22 @@ class SpreadsheetImportWidget(QWidget):
 
         self.refresh_preview()
 
+        self.sheets_group.set_expanded(
+            True
+        )
+
+        self.preview_group.set_expanded(
+            True
+        )
+
+        self.validation_group.set_expanded(
+            True
+        )
+
+        self.file_section.set_expanded(
+            False
+        )
+
     # ================================================================
     # SHEETS
     # ================================================================
@@ -1161,6 +1177,22 @@ class SpreadsheetImportWidget(QWidget):
         self.update_validation_summary()
 
         self.validation_results_group.show()
+
+        self.file_section.set_expanded(
+            False
+        )
+
+        self.sheets_group.set_expanded(
+            False
+        )
+
+        self.preview_group.set_expanded(
+            False
+        )
+
+        self.validation_group.set_expanded(
+            False
+        )
 
     def handle_validation_error(
         self,
