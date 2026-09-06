@@ -101,17 +101,24 @@ def download_genomes(
     """
     Download exactly the assemblies selected by GenomeSieve.
 
+    RefSeq assemblies (GCF_) are downloaded through
+    ncbi-genome-download.
+
+    GenBank-only assemblies (GCA_) are downloaded through
+    NCBI Datasets.
+
+    Both sources are written to the same flat destination directory.
+
     The process is divided into three observable phases:
 
     1. metadata
-       Load and filter NCBI assembly metadata.
+        Load and filter RefSeq assembly metadata.
 
     2. preparing
-       Check each assembly, retrieve checksum information and determine
-       which files actually need to be downloaded.
+        Prepare RefSeq download jobs.
 
     3. downloading
-       Download and checksum-validate the required files.
+        Download requested RefSeq and GenBank files.
     """
 
     if not records:
@@ -137,9 +144,34 @@ def download_genomes(
             f"Could not create the destination folder: {exc}"
         ) from exc
 
-    accessions = [
+    refseq_records = []
+    genbank_records = []
+
+    for record in records:
+
+        if record.accession.startswith(
+            "GCF_"
+        ):
+            refseq_records.append(
+                record
+            )
+
+        elif record.accession.startswith(
+            "GCA_"
+        ):
+            genbank_records.append(
+                record
+            )
+
+        else:
+            raise GenomeDownloadError(
+                "Unsupported assembly accession: "
+                f"{record.accession}"
+            )
+
+    refseq_accessions = [
         record.accession
-        for record in records
+        for record in refseq_records
     ]
 
     # ============================================================
@@ -155,32 +187,47 @@ def download_genomes(
         eta_seconds=None,
     )
 
+    config = None
+    candidates = []
+
     try:
-        config = NgdConfig.from_kwargs(
-            groups=["bacteria"],
-            section="refseq",
-            file_formats=file_formats,
-            assembly_accessions=accessions,
-            output=str(destination_path),
-            flat_output=True,
 
-            # GenomeSieve manages parallel file downloads itself so
-            # progress can be tracked reliably.
-            parallel=1,
+        if refseq_accessions:
 
-            use_cache=True,
-        )
+            config = NgdConfig.from_kwargs(
+                groups=["bacteria"],
+                section="refseq",
+                file_formats=file_formats,
+                assembly_accessions=(
+                    refseq_accessions
+                ),
+                output=str(
+                    destination_path
+                ),
+                flat_output=True,
 
-        candidates = select_candidates(config)
+                # GenomeSieve manages parallel file downloads itself so
+                # progress can be tracked reliably.
+                parallel=1,
+
+                use_cache=True,
+            )
+
+            candidates = select_candidates(
+                config
+            )
 
     except Exception as exc:
         raise GenomeDownloadError(
             f"Could not load NCBI genome metadata: {exc}"
         ) from exc
 
-    if not candidates:
+    if (
+        not candidates
+        and not genbank_records
+    ):
         raise GenomeDownloadError(
-            "No matching RefSeq assemblies were found for download."
+            "No matching assemblies were found for download."
         )
 
     # ============================================================
@@ -194,8 +241,16 @@ def download_genomes(
         phase="preparing",
         completed=0,
         total=total_assemblies,
-        percentage=0,
-        eta_seconds=None,
+        percentage=(
+            0
+            if total_assemblies > 0
+            else 100
+        ),
+        eta_seconds=(
+            None
+            if total_assemblies > 0
+            else 0
+        ),
     )
 
     preparation_start = time.monotonic()
@@ -269,9 +324,9 @@ def download_genomes(
     # NO FILES NEED DOWNLOADING
     # ============================================================
 
-    total_files = len(download_jobs)
+    total_refseq_files = len(download_jobs)
 
-    if total_files == 0:
+    if total_refseq_files == 0:
 
         _emit_progress(
             progress_callback,
@@ -297,8 +352,12 @@ def download_genomes(
         progress_callback,
         phase="downloading",
         completed=0,
-        total=total_files,
-        percentage=0,
+        total=total_refseq_files,
+        percentage=(
+            0
+            if total_refseq_files > 0
+            else None
+        ),
         eta_seconds=None,
     )
 
@@ -309,45 +368,55 @@ def download_genomes(
     # Conservative default.
     max_workers = min(
         4,
-        total_files,
-    )
+        total_refseq_files,
+    ) if total_refseq_files > 0 else 0
 
     try:
-        with ThreadPoolExecutor(
-            max_workers=max_workers
-        ) as executor:
 
-            future_to_job = {
-                executor.submit(worker, job): job
-                for job in download_jobs
-            }
+        if download_jobs:
 
-            for future in as_completed(
-                future_to_job
-            ):
-                job = future_to_job[future]
+            with ThreadPoolExecutor(
+                max_workers=max_workers
+            ) as executor:
 
-                result = future.result()
+                future_to_job = {
+                    executor.submit(
+                        worker,
+                        job,
+                    ): job
+                    for job
+                    in download_jobs
+                }
 
-                if result is False:
-                    raise GenomeDownloadError(
-                        "A downloaded file failed checksum validation: "
-                        f"{Path(job.local_file).name}"
+                for future in as_completed(
+                    future_to_job
+                ):
+                    job = future_to_job[
+                        future
+                    ]
+
+                    result = (
+                        future.result()
                     )
 
-                completed_files += 1
+                    if result is False:
+                        raise GenomeDownloadError(
+                            "A downloaded file failed "
+                            "checksum validation: "
+                            f"{Path(job.local_file).name}"
+                        )
 
-                elapsed = (
-                    time.monotonic()
-                    - download_start
-                )
+                    completed_files += 1
 
-                remaining_files = (
-                    total_files
-                    - completed_files
-                )
+                    elapsed = (
+                        time.monotonic()
+                        - download_start
+                    )
 
-                if completed_files > 0:
+                    remaining_files = (
+                        total_refseq_files
+                        - completed_files
+                    )
 
                     average_time = (
                         elapsed
@@ -359,26 +428,27 @@ def download_genomes(
                         * remaining_files
                     )
 
-                else:
-                    eta_seconds = None
+                    percentage = round(
+                        completed_files
+                        / total_refseq_files
+                        * 100
+                    )
 
-                percentage = round(
-                    completed_files
-                    / total_files
-                    * 100
-                )
-
-                _emit_progress(
-                    progress_callback,
-                    phase="downloading",
-                    completed=completed_files,
-                    total=total_files,
-                    percentage=percentage,
-                    eta_seconds=eta_seconds,
-                    last_item=Path(
-                        job.local_file
-                    ).name,
-                )
+                    _emit_progress(
+                        progress_callback,
+                        phase="downloading",
+                        completed=(
+                            completed_files
+                        ),
+                        total=(
+                            total_refseq_files
+                        ),
+                        percentage=percentage,
+                        eta_seconds=eta_seconds,
+                        last_item=Path(
+                            job.local_file
+                        ).name,
+                    )
 
     except GenomeDownloadError:
         raise
@@ -387,6 +457,56 @@ def download_genomes(
         raise GenomeDownloadError(
             f"Genome download failed: {exc}"
         ) from exc
+    
+    genbank_files = []
+
+    if genbank_records:
+
+        try:
+            genbank_files = (
+                _download_genbank_with_datasets(
+                    records=genbank_records,
+                    file_formats=file_formats,
+                    destination_path=(
+                        destination_path
+                    ),
+                )
+            )
+
+        except GenomeDownloadError:
+            raise
+
+        except Exception as exc:
+            raise GenomeDownloadError(
+                "GenBank download failed: "
+                f"{exc}"
+            ) from exc
+
+    completed_files += len(
+        genbank_files
+    )
+
+    last_file = None
+
+    if genbank_files:
+        last_file = (
+            genbank_files[-1].name
+        )
+
+    elif download_jobs:
+        last_file = Path(
+            download_jobs[-1].local_file
+        ).name
+
+    _emit_progress(
+        progress_callback,
+        phase="downloading",
+        completed=completed_files,
+        total=completed_files,
+        percentage=100,
+        eta_seconds=0,
+        last_item=last_file,
+    )
 
     return GenomeDownloadResult(
         destination=destination_path,
