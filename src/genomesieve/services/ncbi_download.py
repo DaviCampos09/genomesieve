@@ -71,6 +71,7 @@ class DownloadProgress:
         "metadata"
         "preparing"
         "downloading"
+        "genbank"
     """
 
     phase: str
@@ -348,18 +349,27 @@ def download_genomes(
     # PHASE 3 — DOWNLOADING FILES
     # ============================================================
 
-    _emit_progress(
-        progress_callback,
-        phase="downloading",
-        completed=0,
-        total=total_refseq_files,
-        percentage=(
-            0
-            if total_refseq_files > 0
-            else None
-        ),
-        eta_seconds=None,
-    )
+    if total_refseq_files > 0:
+
+        _emit_progress(
+            progress_callback,
+            phase="downloading",
+            completed=0,
+            total=total_refseq_files,
+            percentage=0,
+            eta_seconds=None,
+        )
+
+    elif not genbank_records:
+
+        _emit_progress(
+            progress_callback,
+            phase="downloading",
+            completed=0,
+            total=0,
+            percentage=100,
+            eta_seconds=0,
+        )
 
     download_start = time.monotonic()
 
@@ -470,6 +480,9 @@ def download_genomes(
                     destination_path=(
                         destination_path
                     ),
+                    progress_callback=(
+                        progress_callback
+                    ),
                 )
             )
 
@@ -486,28 +499,6 @@ def download_genomes(
         genbank_files
     )
 
-    last_file = None
-
-    if genbank_files:
-        last_file = (
-            genbank_files[-1].name
-        )
-
-    elif download_jobs:
-        last_file = Path(
-            download_jobs[-1].local_file
-        ).name
-
-    _emit_progress(
-        progress_callback,
-        phase="downloading",
-        completed=completed_files,
-        total=completed_files,
-        percentage=100,
-        eta_seconds=0,
-        last_item=last_file,
-    )
-
     return GenomeDownloadResult(
         destination=destination_path,
         requested_assemblies=len(records),
@@ -519,6 +510,7 @@ def _download_genbank_with_datasets(
     records,
     file_formats,
     destination_path,
+    progress_callback=None,
 ):
     """
     Download GenBank-only assemblies through NCBI Datasets.
@@ -567,6 +559,8 @@ def _download_genbank_with_datasets(
             in genbank_records
         )
     )
+
+    total_genbank_assemblies = len(accessions)
 
     include_formats = list(
         dict.fromkeys(
@@ -633,6 +627,15 @@ def _download_genbank_with_datasets(
             "--no-progressbar",
         ]
 
+        _emit_progress(
+            progress_callback,
+            phase="genbank",
+            completed=0,
+            total=total_genbank_assemblies,
+            percentage=None,
+            eta_seconds=None,
+        )
+
         try:
             process = subprocess.run(
                 command,
@@ -690,7 +693,7 @@ def _download_genbank_with_datasets(
             / "data"
         )
 
-        for accession in accessions:
+        for index, accession in enumerate(accessions, start=1):
 
             accession_path = (
                 data_path
@@ -746,6 +749,22 @@ def _download_genbank_with_datasets(
                     copied_files.append(
                         destination_file
                     )
+
+            percentage = round(
+                index
+                / total_genbank_assemblies
+                * 100
+            )
+
+            _emit_progress(
+                progress_callback,
+                phase="genbank",
+                completed=index,
+                total=total_genbank_assemblies,
+                percentage=percentage,
+                eta_seconds=None,
+                last_item=accession,
+            )
 
     return copied_files
 

@@ -1349,7 +1349,7 @@ class MainWindow(QMainWindow):
         )
 
         self.download_status_label.setText(
-            "Loading NCBI metadata..."
+            "Preparing download..."
         )
 
         self.download_status_label.show()
@@ -1366,7 +1366,7 @@ class MainWindow(QMainWindow):
 
 
         self.download_progress_details_label.setText(
-            "Reading and filtering NCBI RefSeq metadata..."
+            "Checking NCBI download sources and metadata..."
         )
 
         self.download_progress_details_label.show()
@@ -1664,7 +1664,7 @@ class MainWindow(QMainWindow):
         if progress.phase == "metadata":
 
             self.download_status_label.setText(
-                "Loading NCBI metadata..."
+                "Preparing download..."
             )
 
             # Indeterminate progress bar.
@@ -1674,7 +1674,75 @@ class MainWindow(QMainWindow):
             )
 
             self.download_progress_details_label.setText(
-                "Reading and filtering NCBI RefSeq metadata..."
+                "Checking NCBI download sources and metadata..."
+            )
+
+            return
+        
+        # ============================================================
+        # GENBANK — NCBI DATASETS
+        # ============================================================
+
+        if progress.phase == "genbank":
+
+            # While the NCBI Datasets package is being downloaded,
+            # its exact progress is not available to GenomeSieve.
+            if progress.percentage is None:
+
+                self.download_status_label.setText(
+                    "Downloading GenBank data..."
+                )
+
+                self.download_progress_bar.setRange(
+                    0,
+                    0,
+                )
+
+                assembly_label = (
+                    "assembly"
+                    if progress.total == 1
+                    else "assemblies"
+                )
+
+                self.download_progress_details_label.setText(
+                    (
+                        "NCBI Datasets is downloading "
+                        f"{progress.total} GenBank-only "
+                        f"{assembly_label}..."
+                    )
+                )
+
+                return
+
+            # The package has been downloaded. GenomeSieve is now
+            # extracting and copying the requested files.
+            self.download_progress_bar.setRange(
+                0,
+                100,
+            )
+
+            self.download_progress_bar.setValue(
+                progress.percentage
+            )
+
+            self.download_status_label.setText(
+                "Processing GenBank files..."
+            )
+
+            details = (
+                f"{progress.completed} / "
+                f"{progress.total} GenBank assemblies processed"
+            )
+
+            if progress.last_item:
+
+                details += (
+                    "\nLast processed: "
+                    f"{progress.last_item}"
+                )
+
+            self.download_progress_details_label.setText(
+                details
             )
 
             return
