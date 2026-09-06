@@ -57,6 +57,12 @@ GENBANK_DATASETS_FORMATS = {
     },
 }
 
+GENBANK_UNSUPPORTED_FILE_FORMATS = {
+    "assembly-report": "Assembly Report",
+    "assembly-stats": "Assembly Statistics",
+    "translated-cds": "Translated CDS FASTA",
+}
+
 
 class GenomeDownloadError(Exception):
     """Raised when genome files cannot be downloaded."""

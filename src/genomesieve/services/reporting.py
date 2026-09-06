@@ -4,6 +4,10 @@ from pathlib import Path
 
 from genomesieve.services.ncbi_search import GenomeSearchResult
 
+from genomesieve.services.ncbi_download import (
+    GENBANK_UNSUPPORTED_FILE_FORMATS,
+)
+
 
 class ReportError(Exception):
     """Raised when a GenomeSieve report cannot be generated."""
@@ -156,11 +160,13 @@ def export_download_report(
         "source_type",
         "source_name",
         "accession",
+        "assembly_source",
         "species",
         "organism_name",
         "refseq_category",
         "assembly_level",
         "requested_formats",
+        "unavailable_requested_formats",
         "files_present",
     ]
 
@@ -179,11 +185,21 @@ def export_download_report(
 
         for record in records:
 
-            files = sorted(
-                file.name
-                for file
-                in destination_path.glob(
-                    f"{record.accession}*"
+            files = _find_assembly_files(
+                destination=destination_path,
+                accession=record.accession,
+            )
+
+            assembly_source = (
+                _get_assembly_source(
+                    record.accession
+                )
+            )
+
+            unavailable_formats = (
+                _get_unavailable_requested_formats(
+                    accession=record.accession,
+                    file_formats=file_formats,
                 )
             )
 
@@ -193,6 +209,9 @@ def export_download_report(
                     "source_type": source_type,
                     "source_name": source_name,
                     "accession": record.accession,
+                    "assembly_source": (
+                        assembly_source
+                    ),
                     "species": (
                         record.species or ""
                     ),
@@ -208,6 +227,11 @@ def export_download_report(
                     "requested_formats": (
                         ",".join(
                             file_formats
+                        )
+                    ),
+                    "unavailable_requested_formats": (
+                        ",".join(
+                            unavailable_formats
                         )
                     ),
                     "files_present": (
@@ -293,6 +317,47 @@ def _find_assembly_files(
 
     return sorted(files)
 
+def _get_assembly_source(
+    accession: str,
+):
+    """
+    Return the NCBI assembly collection used for download.
+    """
+
+    if accession.startswith(
+        "GCF_"
+    ):
+        return "RefSeq"
+
+    if accession.startswith(
+        "GCA_"
+    ):
+        return "GenBank"
+
+    return "Unknown"
+
+
+def _get_unavailable_requested_formats(
+    accession: str,
+    file_formats: list[str],
+):
+    """
+    Return requested formats that GenomeSieve cannot obtain
+    for a GenBank-only assembly.
+    """
+
+    if not accession.startswith(
+        "GCA_"
+    ):
+        return []
+
+    return [
+        file_format
+        for file_format
+        in file_formats
+        if file_format
+        in GENBANK_UNSUPPORTED_FILE_FORMATS
+    ]
 
 def _safe_filename(value: str):
     """

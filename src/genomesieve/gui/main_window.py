@@ -41,6 +41,10 @@ from genomesieve.gui.collapsible_section import (
     CollapsibleSection,
 )
 
+from genomesieve.services.ncbi_download import (
+    GENBANK_UNSUPPORTED_FILE_FORMATS,
+)
+
 from genomesieve.gui.search_worker import GenomeSearchWorker
 from genomesieve.gui.download_worker import GenomeDownloadWorker
 
@@ -52,12 +56,6 @@ assets_dir = (
 csv_icon = QIcon(
     str(assets_dir / "csv.svg")
 )
-
-GENBANK_UNSUPPORTED_FILE_FORMATS = {
-    "assembly-report": "Assembly Report",
-    "assembly-stats": "Assembly Statistics",
-    "translated-cds": "Translated CDS FASTA",
-}
 
 class CurrentPageStackedWidget(QStackedWidget):
     def sizeHint(self):
