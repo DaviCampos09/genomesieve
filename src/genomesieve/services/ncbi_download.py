@@ -3,6 +3,7 @@ import subprocess
 import tempfile
 import time
 import zipfile
+import gzip
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
@@ -743,14 +744,30 @@ def _download_genbank_with_datasets(
                     )
 
                     destination_file = (
-                        destination_path
-                        / destination_name
+                    destination_path
+                        / f"{destination_name}.gz"
                     )
 
-                    shutil.copy2(
-                        source_file,
-                        destination_file,
-                    )
+                    try:
+                        with source_file.open(
+                            "rb"
+                        ) as source_stream:
+
+                            with gzip.open(
+                                destination_file,
+                                "wb",
+                            ) as destination_stream:
+
+                                shutil.copyfileobj(
+                                    source_stream,
+                                    destination_stream,
+                                )
+
+                    except OSError as exc:
+                        raise GenomeDownloadError(
+                            "Could not compress GenBank file "
+                            f"{source_file.name}: {exc}"
+                        ) from exc
 
                     copied_files.append(
                         destination_file
