@@ -31,6 +31,10 @@ from genomesieve.gui.styles import (
     create_result_metric,
 )
 
+from genomesieve.gui.collapsible_section import (
+    CollapsibleSection,
+)
+
 
 class SpreadsheetImportWidget(QWidget):
     """
@@ -57,11 +61,18 @@ class SpreadsheetImportWidget(QWidget):
         # FILE SELECTION
         # ============================================================
 
-        file_group = QGroupBox(
+        self.file_section = CollapsibleSection(
             "Spreadsheet"
         )
 
         file_layout = QVBoxLayout()
+
+        file_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0,
+        )
 
         file_row = QHBoxLayout()
 
@@ -119,7 +130,7 @@ class SpreadsheetImportWidget(QWidget):
             self.analysis_status_label
         )
 
-        file_group.setLayout(
+        self.file_section.add_layout(
             file_layout
         )
 
@@ -127,17 +138,24 @@ class SpreadsheetImportWidget(QWidget):
         # SHEET / COLUMN SELECTION
         # ============================================================
 
-        self.sheets_group = QGroupBox(
+        self.sheets_group = CollapsibleSection(
             "Assembly accession mapping"
         )
 
         self.sheets_layout = QVBoxLayout()
 
+        self.sheets_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0,
+        )
+
         self.sheets_layout.setSpacing(
             6
         )
 
-        self.sheets_group.setLayout(
+        self.sheets_group.add_layout(
             self.sheets_layout
         )
 
@@ -147,7 +165,7 @@ class SpreadsheetImportWidget(QWidget):
         # PREVIEW
         # ============================================================
 
-        self.preview_group = QGroupBox(
+        self.preview_group = CollapsibleSection(
             "Import preview"
         )
 
@@ -227,21 +245,6 @@ class SpreadsheetImportWidget(QWidget):
             10
         )
 
-        preview_layout.setColumnStretch(
-            0,
-            1,
-        )
-
-        preview_layout.setColumnStretch(
-            1,
-            1,
-        )
-
-        preview_layout.setColumnStretch(
-            2,
-            1,
-        )
-
         self.preview_note = QLabel(
             "Local spreadsheet preview only. "
             "Accessions have not yet been validated against NCBI."
@@ -259,7 +262,7 @@ class SpreadsheetImportWidget(QWidget):
             3,
         )
 
-        self.preview_group.setLayout(
+        self.preview_group.add_layout(
             preview_layout
         )
 
@@ -269,11 +272,18 @@ class SpreadsheetImportWidget(QWidget):
         # NCBI VALIDATION
         # ============================================================
 
-        self.validation_group = QGroupBox(
+        self.validation_group = CollapsibleSection(
             "NCBI validation"
         )
 
         validation_layout = QVBoxLayout()
+
+        validation_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0,
+        )
 
         # ------------------------------------------------------------
         # DUPLICATE HANDLING
@@ -406,7 +416,7 @@ class SpreadsheetImportWidget(QWidget):
             self.validation_status_label
         )
 
-        self.validation_group.setLayout(
+        self.validation_group.add_layout(
             validation_layout
         )
 
@@ -535,7 +545,7 @@ class SpreadsheetImportWidget(QWidget):
         layout = QVBoxLayout()
 
         layout.addWidget(
-            file_group
+            self.file_section
         )
 
         layout.addWidget(
@@ -589,6 +599,10 @@ class SpreadsheetImportWidget(QWidget):
 
         self.reset_analysis()
 
+        self.file_section.set_summary(
+            Path(file_path).name
+        )
+
     # ================================================================
     # ANALYSIS
     # ================================================================
@@ -627,6 +641,20 @@ class SpreadsheetImportWidget(QWidget):
             return
 
         self.build_sheet_controls()
+
+        sheet_count = len(
+            self.analysis.sheets
+        )
+
+        sheet_summary = (
+            f"{sheet_count} sheet"
+            if sheet_count == 1
+            else f"{sheet_count} sheets"
+        )
+
+        self.sheets_group.set_summary(
+            sheet_summary
+        )
 
         self.analysis_status_label.setText(
             "Spreadsheet analyzed successfully."
@@ -970,6 +998,20 @@ class SpreadsheetImportWidget(QWidget):
             )
         )
 
+        entry_count = (
+            result.total_entries
+        )
+
+        entry_summary = (
+            f"{entry_count} entry"
+            if entry_count == 1
+            else f"{entry_count} entries"
+        )
+
+        self.preview_group.set_summary(
+            entry_summary
+        )
+
         self.unique_label.setText(
             str(
                 result.unique_accessions
@@ -1014,6 +1056,9 @@ class SpreadsheetImportWidget(QWidget):
         self.current_import_result = None
 
         self.clear_sheet_controls()
+
+        self.sheets_group.clear_summary()
+        self.preview_group.clear_summary()
 
         self.sheets_group.hide()
         self.preview_group.hide()
@@ -1107,6 +1152,10 @@ class SpreadsheetImportWidget(QWidget):
 
         self.validation_status_label.setText(
             "NCBI validation completed successfully."
+        )
+
+        self.validation_group.set_summary(
+            "completed"
         )
 
         self.update_validation_summary()
@@ -1254,6 +1303,8 @@ class SpreadsheetImportWidget(QWidget):
     def invalidate_validation(self):
 
         self.current_validation_result = None
+
+        self.validation_group.clear_summary()
 
         self.validation_results_group.hide()
 
