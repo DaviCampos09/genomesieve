@@ -1,4 +1,8 @@
+import shutil
+import subprocess
+import tempfile
 import time
+import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
@@ -12,6 +16,46 @@ from ncbi_genome_download.core import (
 )
 
 from genomesieve.services.ncbi_search import GenomeRecord
+
+GENBANK_DATASETS_FORMATS = {
+    "protein-fasta": {
+        "include": "protein",
+        "patterns": (
+            "protein.faa",
+        ),
+    },
+    "fasta": {
+        "include": "genome",
+        "patterns": (
+            "*_genomic.fna",
+        ),
+    },
+    "cds-fasta": {
+        "include": "cds",
+        "patterns": (
+            "cds_from_genomic.fna",
+            "cds.fna",
+        ),
+    },
+    "rna-fasta": {
+        "include": "rna",
+        "patterns": (
+            "rna.fna",
+        ),
+    },
+    "gff": {
+        "include": "gff3",
+        "patterns": (
+            "genomic.gff",
+        ),
+    },
+    "genbank": {
+        "include": "gbff",
+        "patterns": (
+            "genomic.gbff",
+        ),
+    },
+}
 
 
 class GenomeDownloadError(Exception):
@@ -349,6 +393,285 @@ def download_genomes(
         requested_assemblies=len(records),
         requested_formats=file_formats,
         completed_files=completed_files,
+    )
+
+def _download_genbank_with_datasets(
+    records,
+    file_formats,
+    destination_path,
+):
+    """
+    Download GenBank-only assemblies through NCBI Datasets.
+
+    The NCBI Datasets package is downloaded and extracted in a
+    temporary directory. Only the files requested by the user are
+    copied to the final GenomeSieve destination.
+    """
+
+    genbank_records = [
+        record
+        for record in records
+        if record.accession.startswith(
+            "GCA_"
+        )
+    ]
+
+    if not genbank_records:
+        return []
+
+    supported_formats = [
+        file_format
+        for file_format in file_formats
+        if file_format
+        in GENBANK_DATASETS_FORMATS
+    ]
+
+    if not supported_formats:
+        return []
+
+    datasets_path = shutil.which(
+        "datasets"
+    )
+
+    if datasets_path is None:
+        raise GenomeDownloadError(
+            "NCBI Datasets was not found. "
+            "Make sure the 'datasets' command is installed "
+            "and available in PATH."
+        )
+
+    accessions = list(
+        dict.fromkeys(
+            record.accession
+            for record
+            in genbank_records
+        )
+    )
+
+    include_formats = list(
+        dict.fromkeys(
+            GENBANK_DATASETS_FORMATS[
+                file_format
+            ]["include"]
+            for file_format
+            in supported_formats
+        )
+    )
+
+    copied_files = []
+
+    with tempfile.TemporaryDirectory(
+        prefix="genomesieve_genbank_"
+    ) as temporary_directory:
+
+        temporary_path = Path(
+            temporary_directory
+        )
+
+        accessions_file = (
+            temporary_path
+            / "accessions.txt"
+        )
+
+        package_path = (
+            temporary_path
+            / "genbank_dataset.zip"
+        )
+
+        extracted_path = (
+            temporary_path
+            / "extracted"
+        )
+
+        accessions_file.write_text(
+            "\n".join(
+                accessions
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        command = [
+            datasets_path,
+            "download",
+            "genome",
+            "accession",
+            "--inputfile",
+            str(
+                accessions_file
+            ),
+            "--assembly-version",
+            "all",
+            "--include",
+            ",".join(
+                include_formats
+            ),
+            "--filename",
+            str(
+                package_path
+            ),
+            "--no-progressbar",
+        ]
+
+        try:
+            process = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+        except OSError as exc:
+            raise GenomeDownloadError(
+                "Could not start NCBI Datasets: "
+                f"{exc}"
+            ) from exc
+
+        if process.returncode != 0:
+
+            error_message = (
+                process.stderr.strip()
+                or process.stdout.strip()
+                or "NCBI Datasets returned an unknown error."
+            )
+
+            raise GenomeDownloadError(
+                "GenBank download failed: "
+                f"{error_message}"
+            )
+
+        if not package_path.exists():
+            raise GenomeDownloadError(
+                "NCBI Datasets did not create the expected "
+                "GenBank data package."
+            )
+
+        try:
+            with zipfile.ZipFile(
+                package_path
+            ) as package:
+
+                package.extractall(
+                    extracted_path
+                )
+
+        except (
+            OSError,
+            zipfile.BadZipFile,
+        ) as exc:
+            raise GenomeDownloadError(
+                "Could not extract the GenBank data package: "
+                f"{exc}"
+            ) from exc
+
+        data_path = (
+            extracted_path
+            / "ncbi_dataset"
+            / "data"
+        )
+
+        for accession in accessions:
+
+            accession_path = (
+                data_path
+                / accession
+            )
+
+            if not accession_path.exists():
+                raise GenomeDownloadError(
+                    "NCBI Datasets did not return files for "
+                    f"{accession}."
+                )
+
+            for file_format in (
+                supported_formats
+            ):
+
+                format_config = (
+                    GENBANK_DATASETS_FORMATS[
+                        file_format
+                    ]
+                )
+
+                source_files = (
+                    _find_genbank_dataset_files(
+                        accession_path,
+                        format_config[
+                            "patterns"
+                        ],
+                    )
+                )
+
+                for source_file in (
+                    source_files
+                ):
+
+                    destination_name = (
+                        _build_genbank_output_name(
+                            accession,
+                            source_file,
+                        )
+                    )
+
+                    destination_file = (
+                        destination_path
+                        / destination_name
+                    )
+
+                    shutil.copy2(
+                        source_file,
+                        destination_file,
+                    )
+
+                    copied_files.append(
+                        destination_file
+                    )
+
+    return copied_files
+
+def _find_genbank_dataset_files(
+    accession_path,
+    patterns,
+):
+    """
+    Find files for one requested GenomeSieve format inside
+    an extracted NCBI Datasets assembly directory.
+    """
+
+    for pattern in patterns:
+
+        matches = sorted(
+            accession_path.glob(
+                pattern
+            )
+        )
+
+        if matches:
+            return matches
+
+    return []
+
+def _build_genbank_output_name(
+    accession,
+    source_file,
+):
+    """
+    Build a collision-safe flat filename for a file extracted
+    from an NCBI Datasets package.
+    """
+
+    source_name = (
+        source_file.name
+    )
+
+    if source_name.startswith(
+        accession
+    ):
+        return source_name
+
+    return (
+        f"{accession}_"
+        f"{source_name}"
     )
 
 
