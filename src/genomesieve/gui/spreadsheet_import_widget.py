@@ -275,6 +275,27 @@ class SpreadsheetImportWidget(QWidget):
 
         validation_layout = QVBoxLayout()
 
+        # ------------------------------------------------------------
+        # DUPLICATE HANDLING
+        # ------------------------------------------------------------
+
+        self.duplicate_options_widget = QWidget()
+
+        duplicate_options_layout = QVBoxLayout(
+            self.duplicate_options_widget
+        )
+
+        duplicate_options_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0,
+        )
+
+        duplicate_options_layout.setSpacing(
+            6
+        )
+
         duplicate_label = QLabel(
             "Duplicate handling"
         )
@@ -305,14 +326,40 @@ class SpreadsheetImportWidget(QWidget):
         )
 
         duplicate_description = QLabel(
-            "Duplicate entries may be preserved in the dataset, "
-            "but identical Assembly Accessions will still be "
-            "downloaded only once."
+            "Duplicate rows can be kept in the dataset, "
+            "but each Assembly Accession is downloaded only once."
         )
 
         duplicate_description.setWordWrap(
             True
         )
+
+        duplicate_options_layout.addWidget(
+            duplicate_label
+        )
+
+        duplicate_options_layout.addWidget(
+            self.keep_duplicates_radio
+        )
+
+        duplicate_options_layout.addWidget(
+            self.remove_duplicates_radio
+        )
+
+        duplicate_options_layout.addWidget(
+            duplicate_description
+        )
+
+        # Message used when the spreadsheet has no duplicate entries.
+        self.no_duplicates_label = QLabel(
+            "No duplicate entries detected."
+        )
+
+        self.no_duplicates_label.hide()
+
+        # ------------------------------------------------------------
+        # NCBI VALIDATION BUTTON
+        # ------------------------------------------------------------
 
         self.validate_ncbi_button = (
             QPushButton(
@@ -335,20 +382,16 @@ class SpreadsheetImportWidget(QWidget):
         self.validation_status_label = QLabel()
         self.validation_status_label.hide()
 
+        # ------------------------------------------------------------
+        # VALIDATION LAYOUT
+        # ------------------------------------------------------------
+
         validation_layout.addWidget(
-            duplicate_label
+            self.duplicate_options_widget
         )
 
         validation_layout.addWidget(
-            self.keep_duplicates_radio
-        )
-
-        validation_layout.addWidget(
-            self.remove_duplicates_radio
-        )
-
-        validation_layout.addWidget(
-            duplicate_description
+            self.no_duplicates_label
         )
 
         validation_layout.addSpacing(
@@ -939,6 +982,11 @@ class SpreadsheetImportWidget(QWidget):
             )
         )
 
+        self.update_duplicate_handling_visibility(
+            result.duplicate_entries
+        )
+
+
         self.invalid_label.setText(
             str(
                 result.total_invalid_entries
@@ -1214,3 +1262,22 @@ class SpreadsheetImportWidget(QWidget):
         self.validation_result_changed.emit(
             None
         )
+
+    def update_duplicate_handling_visibility(
+        self,
+        duplicate_count,
+    ):
+        has_duplicates = duplicate_count > 0
+
+        self.duplicate_options_widget.setVisible(
+            has_duplicates
+        )
+
+        self.no_duplicates_label.setVisible(
+            not has_duplicates
+        )
+
+        if not has_duplicates:
+            self.keep_duplicates_radio.setChecked(
+                True
+            )
