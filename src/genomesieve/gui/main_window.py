@@ -1188,10 +1188,46 @@ class MainWindow(QMainWindow):
             self.search_worker = None
 
     def invalidate_search_results(self):
+
         self.current_search_result = None
+
         self.results_group.hide()
+
+        self.search_report_button.setEnabled(
+            False
+        )
+
+        self.search_status_label.hide()
+
+        # File format controls are shared with spreadsheet imports.
+        # Changing them must not invalidate an existing NCBI
+        # validation result.
+        if self.import_spreadsheet_radio.isChecked():
+
+            if (
+                self.current_import_validation_result
+                is not None
+                and self.current_import_validation_result
+                .unique_download_records
+            ):
+                self.download_group.show()
+
+                self.update_download_button_state()
+
+            else:
+                self.download_group.hide()
+
+            return
+
+        # Genus-search parameters changed, so the previous search
+        # is no longer valid.
         self.download_group.hide()
-        self.search_report_button.setEnabled(False)
+
+        self.search_parameters_section.clear_summary()
+
+        self.search_parameters_section.set_expanded(
+            True
+        )
 
     def set_search_controls_enabled(self, enabled):
         self.genus_input.setEnabled(enabled)
@@ -1839,6 +1875,26 @@ class MainWindow(QMainWindow):
             import_mode
         )
 
+        # Switching source mode always discards any previous
+        # genus-based search result.
+        self.current_search_result = None
+
+        self.results_group.hide()
+
+        self.search_report_button.setEnabled(
+            False
+        )
+
+        self.search_status_label.hide()
+
+        # If the user returns to genus search, a new search must
+        # be performed. Keep the parameters ready for editing.
+        self.search_parameters_section.clear_summary()
+
+        self.search_parameters_section.set_expanded(
+            True
+        )
+
         if import_mode:
 
             self.source_stack.setCurrentIndex(
@@ -1858,23 +1914,13 @@ class MainWindow(QMainWindow):
                 False
             )
 
-            # File formats remain enabled because they will also be used
-            # by spreadsheet downloads.
+            # File formats are shared by both workflows.
             self.format_group.setEnabled(
                 True
             )
 
-            self.search_button.hide()
-            self.search_status_label.hide()
-            self.results_group.hide()
-            
-            self.current_search_result = None
-
-            self.search_report_button.setEnabled(
-                False
-            )
-
-            # NOVA PARTE DA ETAPA D
+            # Preserve a valid spreadsheet import when switching
+            # temporarily between source modes.
             if (
                 self.current_import_validation_result
                 is not None
@@ -1910,18 +1956,8 @@ class MainWindow(QMainWindow):
                 True
             )
 
-            self.search_button.show()
-
-            # Do not restore old search results. The user should search
-            # again after changing source mode.
-            self.results_group.hide()
+            # Old genus search results are intentionally not restored.
             self.download_group.hide()
-
-            self.current_search_result = None
-
-            self.search_report_button.setEnabled(
-                False
-            )
 
         self.source_stack.updateGeometry()
 

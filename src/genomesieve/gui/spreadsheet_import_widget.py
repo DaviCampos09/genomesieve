@@ -870,6 +870,14 @@ class SpreadsheetImportWidget(QWidget):
 
         self.refresh_preview()
 
+        self.preview_group.set_expanded(
+            True
+        )
+
+        self.validation_group.set_expanded(
+            True
+        )
+
     def update_column_examples(
         self,
         sheet_name,
