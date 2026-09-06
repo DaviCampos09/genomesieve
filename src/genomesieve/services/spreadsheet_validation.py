@@ -184,7 +184,8 @@ def validate_imported_accessions(
     GCF accessions are kept when valid.
 
     GCA accessions are resolved to their paired GCF accession whenever
-    NCBI provides a RefSeq pair.
+    NCBI provides a RefSeq pair. When no RefSeq pair exists, the original
+    GenBank assembly is preserved as a GenBank-only record.
 
     The validation is performed in batches rather than one request per
     spreadsheet row.
@@ -369,12 +370,36 @@ def validate_imported_accessions(
         )
 
         # No RefSeq equivalent exists.
+        # Keep the original GenBank assembly available as a
+        # fallback download candidate.
         if (
             not paired_accession
             or not paired_accession.startswith(
                 "GCF_"
             )
         ):
+
+            genbank_record = parse_genome_record(
+                original_report
+            )
+
+            if genbank_record is None:
+
+                validated_entries.append(
+                    ValidatedImportedEntry(
+                        source_entry=(
+                            source_entry
+                        ),
+                        original_accession=(
+                            original_accession
+                        ),
+                        resolved_accession=None,
+                        status=NOT_FOUND,
+                        record=None,
+                    )
+                )
+
+                continue
 
             validated_entries.append(
                 ValidatedImportedEntry(
@@ -384,9 +409,11 @@ def validate_imported_accessions(
                     original_accession=(
                         original_accession
                     ),
-                    resolved_accession=None,
+                    resolved_accession=(
+                        genbank_record.accession
+                    ),
                     status=GENBANK_ONLY,
-                    record=None,
+                    record=genbank_record,
                 )
             )
 
