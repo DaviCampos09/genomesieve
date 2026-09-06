@@ -53,8 +53,8 @@ class SpreadsheetValidationResult:
     @property
     def ready_entries(self):
         """
-        Entries that can be handled by the current RefSeq-only
-        GenomeSieve download workflow.
+        Entries that can be handled by the GenomeSieve
+        download workflow.
         """
 
         return [
@@ -64,6 +64,7 @@ class SpreadsheetValidationResult:
             in {
                 VALID_REFSEQ,
                 RESOLVED_TO_REFSEQ,
+                GENBANK_ONLY,
             }
         ]
 
@@ -109,7 +110,7 @@ class SpreadsheetValidationResult:
         Physical downloads are always unique.
 
         Even if the spreadsheet contains the same accession several
-        times, the same GCF file only needs to be downloaded once.
+        times, the same resolved assembly only needs to be downloaded once.
         """
 
         records = {}

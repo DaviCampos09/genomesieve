@@ -442,7 +442,7 @@ class SpreadsheetImportWidget(QWidget):
         validation_results_layout.addWidget(
             create_result_metric(
                 self.ready_label,
-                "Ready for RefSeq",
+                "Ready for download",
             ),
             0,
             0,

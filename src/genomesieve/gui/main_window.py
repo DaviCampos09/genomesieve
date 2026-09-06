@@ -53,6 +53,12 @@ csv_icon = QIcon(
     str(assets_dir / "csv.svg")
 )
 
+GENBANK_UNSUPPORTED_FILE_FORMATS = {
+    "assembly-report": "Assembly Report",
+    "assembly-stats": "Assembly Statistics",
+    "translated-cds": "Translated CDS FASTA",
+}
+
 class CurrentPageStackedWidget(QStackedWidget):
     def sizeHint(self):
         current_widget = self.currentWidget()
@@ -1326,15 +1332,13 @@ class MainWindow(QMainWindow):
 
         file_formats = self.get_selected_formats()
 
-        self.set_search_controls_enabled(False)
+        if not self.confirm_genbank_download_compatibility(
+            selected_records,
+            file_formats,
+        ):
+            return
 
-        # if (
-        #     self.import_spreadsheet_radio
-        #     .isChecked()
-        # ):
-        #     self.spreadsheet_import_widget.set_import_controls_enabled(
-        #         False
-        #     )
+        self.set_search_controls_enabled(False)
 
         self.search_button.setEnabled(False)
         self.browse_button.setEnabled(False)
@@ -1419,6 +1423,129 @@ class MainWindow(QMainWindow):
         )
 
         self.download_worker.start()
+
+    def confirm_genbank_download_compatibility(
+        self,
+        records,
+        file_formats,
+    ):
+        genbank_accessions = {
+            record.accession
+            for record in records
+            if record.accession.startswith(
+                "GCA_"
+            )
+        }
+
+        if not genbank_accessions:
+            return True
+
+        unsupported_formats = [
+            display_name
+            for (
+                format_key,
+                display_name,
+            )
+            in GENBANK_UNSUPPORTED_FILE_FORMATS.items()
+            if format_key in file_formats
+        ]
+
+        if not unsupported_formats:
+            return True
+
+        supported_formats = [
+            file_format
+            for file_format in file_formats
+            if (
+                file_format
+                not in GENBANK_UNSUPPORTED_FILE_FORMATS
+            )
+        ]
+
+        has_refseq_records = any(
+            record.accession.startswith(
+                "GCF_"
+            )
+            for record in records
+        )
+
+        # There would be nothing at all to download.
+        if (
+            not supported_formats
+            and not has_refseq_records
+        ):
+            QMessageBox.warning(
+                self,
+                "Unsupported GenBank file types",
+                (
+                    "The selected file types are not available "
+                    "for GenBank-only assemblies.\n\n"
+                    "Select at least one compatible file type "
+                    "before starting the download."
+                ),
+            )
+
+            return False
+
+        unavailable_text = "\n".join(
+            f"• {display_name}"
+            for display_name
+            in unsupported_formats
+        )
+
+        message_box = QMessageBox(
+            self
+        )
+
+        message_box.setIcon(
+            QMessageBox.Icon.Warning
+        )
+
+        message_box.setWindowTitle(
+            "Limited GenBank file availability"
+        )
+
+        message_box.setText(
+            "Some selected file types are not available "
+            "for GenBank-only assemblies."
+        )
+
+        message_box.setInformativeText(
+            (
+                "GenBank-only assemblies: "
+                f"{len(genbank_accessions)}\n\n"
+                "Unavailable file types:\n"
+                f"{unavailable_text}\n\n"
+                "If you continue, these file types will still "
+                "be downloaded for compatible RefSeq assemblies. "
+                "GenBank-only assemblies will receive only the "
+                "supported selected file types."
+            )
+        )
+
+        continue_button = (
+            message_box.addButton(
+                "Continue download",
+                QMessageBox.ButtonRole.AcceptRole,
+            )
+        )
+
+        cancel_button = (
+            message_box.addButton(
+                QMessageBox.StandardButton.Cancel
+            )
+        )
+
+        message_box.setDefaultButton(
+            cancel_button
+        )
+
+        message_box.exec()
+
+        return (
+            message_box.clickedButton()
+            is continue_button
+        )
 
     def handle_download_success(self, result):
 
