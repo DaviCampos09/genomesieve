@@ -37,6 +37,10 @@ from genomesieve.gui.styles import (
     create_result_metric,
 )
 
+from genomesieve.gui.collapsible_section import (
+    CollapsibleSection,
+)
+
 from genomesieve.gui.search_worker import GenomeSearchWorker
 from genomesieve.gui.download_worker import GenomeDownloadWorker
 
@@ -207,16 +211,6 @@ class MainWindow(QMainWindow):
 
         self.spreadsheet_import_widget.validation_result_changed.connect(
             self.handle_import_validation_result
-        )
-
-        self.source_stack = CurrentPageStackedWidget()
-
-        self.source_stack.addWidget(
-            genus_page
-        )
-
-        self.source_stack.addWidget(
-            self.spreadsheet_import_widget
         )
 
         self.search_by_genus_radio.toggled.connect(
@@ -522,6 +516,117 @@ class MainWindow(QMainWindow):
         self.search_status_label.hide()
 
         # ============================================================
+        # SEARCH PARAMETERS
+        # ============================================================
+
+        self.search_parameters_section = (
+            CollapsibleSection(
+                "Search parameters"
+            )
+        )
+
+        self.search_parameters_section.add_widget(
+            genus_page
+        )
+
+        self.search_parameters_section.add_spacing(
+            20
+        )
+
+        self.search_parameters_section.add_layout(
+            self.filters_layout
+        )
+
+        self.search_parameters_section.add_spacing(
+            15
+        )
+
+        self.search_parameters_section.add_widget(
+            self.search_button
+        )
+
+        # ============================================================
+        # GENUS WORKFLOW PAGE
+        # ============================================================
+
+        genus_workflow_page = QWidget()
+
+        genus_workflow_layout = QVBoxLayout(
+            genus_workflow_page
+        )
+
+        genus_workflow_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0,
+        )
+
+        genus_workflow_layout.setSpacing(
+            6
+        )
+
+        genus_workflow_layout.addWidget(
+            self.search_parameters_section
+        )
+
+        genus_workflow_layout.addWidget(
+            self.search_status_label
+        )
+
+        # ============================================================
+        # SPREADSHEET WORKFLOW PAGE
+        # ============================================================
+
+        spreadsheet_workflow_page = QWidget()
+
+        spreadsheet_workflow_layout = QVBoxLayout(
+            spreadsheet_workflow_page
+        )
+
+        spreadsheet_workflow_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0,
+        )
+
+        spreadsheet_workflow_layout.setSpacing(
+            15
+        )
+
+        spreadsheet_workflow_layout.addWidget(
+            self.spreadsheet_import_widget
+        )
+
+        self.import_files_layout = QVBoxLayout()
+
+        self.import_files_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0,
+        )
+
+        spreadsheet_workflow_layout.addLayout(
+            self.import_files_layout
+        )
+
+        # ============================================================
+        # GENOME SOURCE STACK
+        # ============================================================
+
+        self.source_stack = CurrentPageStackedWidget()
+
+        self.source_stack.addWidget(
+            genus_workflow_page
+        )
+
+        self.source_stack.addWidget(
+            spreadsheet_workflow_page
+        )
+
+        # ============================================================
         # SEARCH RESULTS
         # ============================================================
 
@@ -799,20 +904,13 @@ class MainWindow(QMainWindow):
             self.source_stack
         )
 
-        content_layout.addSpacing(20)
-
-        content_layout.addLayout(self.filters_layout)
-
-        content_layout.addSpacing(15)
-
-        content_layout.addWidget(self.search_button)
-        content_layout.addWidget(
-            self.search_status_label
+        content_layout.addSpacing(
+            10
         )
 
-        content_layout.addSpacing(10)
-
-        content_layout.addWidget(self.results_group)
+        content_layout.addWidget(
+            self.results_group
+        )
 
         content_layout.addSpacing(10)
 
@@ -838,33 +936,17 @@ class MainWindow(QMainWindow):
         self,
         import_mode,
     ):
-        genus_filters_visible = not import_mode
-
-        self.assembly_group.setVisible(
-            genus_filters_visible
-        )
-
-        self.selection_group.setVisible(
-            genus_filters_visible
-        )
-
-        self.unidentified_group.setVisible(
-            genus_filters_visible
-        )
-
-        self.format_group.setVisible(True)
-
         self.filters_layout.removeWidget(
             self.format_group
         )
 
+        self.import_files_layout.removeWidget(
+            self.format_group
+        )
+
         if import_mode:
-            self.filters_layout.addWidget(
-                self.format_group,
-                0,
-                0,
-                1,
-                2,
+            self.import_files_layout.addWidget(
+                self.format_group
             )
 
         else:
@@ -874,7 +956,10 @@ class MainWindow(QMainWindow):
                 1,
             )
 
+        self.format_group.show()
+
         self.filters_layout.invalidate()
+        self.import_files_layout.invalidate()
 
     # ================================================================
     # GENUS VALIDATION
@@ -1054,9 +1139,26 @@ class MainWindow(QMainWindow):
             self.search_status_label.setText(
                 "No matching assemblies were found."
             )
+
+            self.search_parameters_section.clear_summary()
+
+            self.search_parameters_section.set_expanded(
+                True
+            )
+
         else:
             self.search_status_label.setText(
                 "Search completed successfully."
+            )
+
+            genus = self.genus_input.text().strip()
+
+            self.search_parameters_section.set_summary(
+                genus
+            )
+
+            self.search_parameters_section.set_expanded(
+                False
             )
 
     def handle_search_error(self, message):
