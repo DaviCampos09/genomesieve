@@ -12,6 +12,9 @@ dependencies = [
     "openpyxl>=3.1,<4.0",
 ]
 
+[project.scripts]
+genomesieve = "genomesieve.main:main"
+
 [build-system]
 requires = ["setuptools>=77.0.3"]
 build-backend = "setuptools.build_meta"
