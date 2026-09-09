@@ -101,7 +101,9 @@ Other operating systems and software versions may work but have not yet been for
 
 GenomeSieve uses the official **NCBI Datasets command-line tool** for genome metadata retrieval, spreadsheet accession validation, and some download operations.
 
-Install NCBI Datasets following the installation instructions provided in the [official NCBI Datasets documentation](https://www.ncbi.nlm.nih.gov/datasets/docs/v2/command-line-tools/download-and-install/?utm_source=chatgpt.com) .
+### Linux/macOS
+
+Install NCBI Datasets following the instructions provided in the [official NCBI Datasets documentation](https://www.ncbi.nlm.nih.gov/datasets/docs/v2/command-line-tools/download-and-install/).
 
 After installation, verify that the command is available:
 
@@ -109,9 +111,46 @@ After installation, verify that the command is available:
 datasets version
 ```
 
-GenomeSieve expects the `datasets` executable to be available in your system `PATH`.
+GenomeSieve expects the datasets executable to be available in your system PATH.
 
-NCBI Datasets is updated frequently. GenomeSieve was tested with version `18.29.1`, but installation of the current supported NCBI version is recommended.
+### Windows
+
+On Windows, create a permanent directory that can be added to the system PATH.
+
+For example, create:
+```
+C:\Tools\ncbi-datasets
+```
+
+Open Command Prompt and run:
+
+```
+cd C:\Tools\ncbi-datasets
+curl -o datasets.exe "https://ftp.ncbi.nlm.nih.gov/pub/datasets/command-line/v2/win64/datasets.exe"
+```
+
+Then add the following directory to your Windows Path environment variable:
+```
+C:\Tools\ncbi-datasets
+```
+
+To do this:
+
+1. Search Windows for Environment Variables.
+2. Open Edit the system environment variables.
+3. Select Environment Variables.
+4. Under User variables, select Path and click Edit.
+5. Click New and add:
+    ```
+    C:\Tools\ncbi-datasets
+    ```
+6. Confirm the changes and close all open Command Prompt windows.
+
+Open a new Command Prompt and verify:
+```
+datasets version
+```
+If this command works from any directory, GenomeSieve should be able to detect NCBI Datasets.
 
 ## Installation
 
@@ -122,16 +161,35 @@ git clone https://github.com/DaviCampos09/genomesieve.git
 cd genomesieve
 ```
 
-Create a Python virtual environment:
+### Linux/macOS
+Create a virtual environment:
 
 ```bash
 python3 -m venv .venv
 ```
 
-Activate it on Linux/macOS:
+Activate it
 
 ```bash
 source .venv/bin/activate
+```
+
+Then install GenomeSieve:
+
+```bash
+python -m pip install .
+```
+
+### Windows
+Create a virtual environment:
+
+```bash
+python -m venv .venv
+```
+
+Activate it in Prompt:
+```bash
+.\venv\Scripts\activate.bat
 ```
 
 Then install GenomeSieve:
