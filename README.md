@@ -9,6 +9,7 @@ GenomeSieve is particularly intended for researchers and students who need to re
 ## Table of Contents
 
 * [Features](#features)
+* [Screenshots](#screenshots)
 * [Current Scope](#current-scope)
 * [Requirements](#requirements)
 * [Installing NCBI Datasets](#installing-ncbi-datasets)
@@ -47,6 +48,26 @@ GenomeSieve currently provides:
 * CSV search reports.
 * CSV download reports.
 * Graphical desktop interface built with PySide6.
+
+## Screenshots
+
+### Genome search
+
+Configure the genus, assembly levels, output file formats, species filtering, and the number of assemblies to retain per species.
+
+![GenomeSieve search parameters](docs/images/search-parameters.png)
+
+### Search results
+
+GenomeSieve summarizes the retrieved assemblies and the final selection before downloading.
+
+![GenomeSieve search results](docs/images/search-results.png)
+
+### Spreadsheet validation
+
+Assembly accessions imported from spreadsheets are validated against NCBI before download. The validation workflow identifies available datasets, GenBank-only assemblies, unresolved accessions, and unique downloads.
+
+![GenomeSieve spreadsheet validation](docs/images/spreadsheet-validation.png)
 
 ## Current Scope
 
